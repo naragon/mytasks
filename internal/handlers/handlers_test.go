@@ -46,6 +46,31 @@ func TestHomeHandler_ListsProjects(t *testing.T) {
 	}
 }
 
+func TestHomeHandler_HidesCompletedProjects(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	active := &models.Project{Name: "Active", Type: "project", SortOrder: 1}
+	completed := &models.Project{Name: "Completed", Type: "project", SortOrder: 2}
+	s.CreateProject(ctx, active)
+	s.CreateProject(ctx, completed)
+	s.MarkProjectComplete(ctx, completed.ID)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+
+	h.Home(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	body := rec.Body.String()
+	if strings.Contains(body, "Completed") {
+		t.Fatalf("expected completed project to be hidden, response body: %s", body)
+	}
+}
+
 func TestHomeHandler_ShowsTopThreeTasks(t *testing.T) {
 	h, s := setupTestHandlers(t)
 	ctx := context.Background()
@@ -192,6 +217,65 @@ func TestDeleteProjectHandler_Success(t *testing.T) {
 	_, err := s.GetProject(ctx, 1)
 	if err == nil {
 		t.Error("expected project to be deleted")
+	}
+}
+
+func TestCompleteProjectHandler_Success(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Test", Type: "project"}
+	s.CreateProject(ctx, project)
+
+	req := httptest.NewRequest("POST", "/api/projects/1/complete", nil)
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.CompleteProject(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	updated, err := s.GetProject(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("GetProject failed: %v", err)
+	}
+	if !updated.Completed {
+		t.Fatal("expected project to be marked completed")
+	}
+}
+
+func TestReopenProjectHandler_Success(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Test", Type: "project"}
+	s.CreateProject(ctx, project)
+	s.MarkProjectComplete(ctx, project.ID)
+
+	req := httptest.NewRequest("POST", "/api/projects/1/reopen", nil)
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.ReopenProject(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	updated, err := s.GetProject(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("GetProject failed: %v", err)
+	}
+	if updated.Completed {
+		t.Fatal("expected project to be reopened")
 	}
 }
 

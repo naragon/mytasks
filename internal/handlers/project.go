@@ -139,6 +139,44 @@ func (h *Handlers) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// CompleteProject marks a project as completed.
+func (h *Handlers) CompleteProject(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	if err := h.store.MarkProjectComplete(ctx, id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/")
+	w.WriteHeader(http.StatusOK)
+}
+
+// ReopenProject marks a completed project as incomplete.
+func (h *Handlers) ReopenProject(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid project id")
+		return
+	}
+
+	if err := h.store.MarkProjectIncomplete(ctx, id); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/")
+	w.WriteHeader(http.StatusOK)
+}
+
 // ReorderProjects updates the order of projects.
 func (h *Handlers) ReorderProjects(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

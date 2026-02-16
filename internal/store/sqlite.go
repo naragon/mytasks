@@ -79,9 +79,9 @@ func (s *SQLiteStore) CreateProject(ctx context.Context, project *models.Project
 	}
 
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO projects (name, description, type, target_date, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, project.Name, project.Description, project.Type, targetDate, project.SortOrder, now, now)
+		INSERT INTO projects (name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, project.Name, project.Description, project.Type, targetDate, false, nil, project.SortOrder, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create project: %w", err)
 	}
@@ -99,9 +99,10 @@ func (s *SQLiteStore) CreateProject(ctx context.Context, project *models.Project
 func (s *SQLiteStore) GetProject(ctx context.Context, id int64) (*models.Project, error) {
 	project := &models.Project{}
 	var targetDate sql.NullString
+	var completedAt sql.NullString
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, name, description, type, target_date, sort_order, created_at, updated_at
+		SELECT id, name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM projects WHERE id = ?
 	`, id).Scan(
 		&project.ID,
@@ -109,6 +110,8 @@ func (s *SQLiteStore) GetProject(ctx context.Context, id int64) (*models.Project
 		&project.Description,
 		&project.Type,
 		&targetDate,
+		&project.Completed,
+		&completedAt,
 		&project.SortOrder,
 		&project.CreatedAt,
 		&project.UpdatedAt,
@@ -128,13 +131,21 @@ func (s *SQLiteStore) GetProject(ctx context.Context, id int64) (*models.Project
 		project.TargetDate = parsedDate
 	}
 
+	if completedAt.Valid {
+		parsedDate, err := parseSQLiteDate(completedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse project completed_at: %w", err)
+		}
+		project.CompletedAt = parsedDate
+	}
+
 	return project, nil
 }
 
 // ListProjects retrieves all projects ordered by sort_order.
 func (s *SQLiteStore) ListProjects(ctx context.Context) ([]models.Project, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, description, type, target_date, sort_order, created_at, updated_at
+		SELECT id, name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM projects ORDER BY sort_order ASC
 	`)
 	if err != nil {
@@ -146,6 +157,7 @@ func (s *SQLiteStore) ListProjects(ctx context.Context) ([]models.Project, error
 	for rows.Next() {
 		var project models.Project
 		var targetDate sql.NullString
+		var completedAt sql.NullString
 
 		err := rows.Scan(
 			&project.ID,
@@ -153,6 +165,8 @@ func (s *SQLiteStore) ListProjects(ctx context.Context) ([]models.Project, error
 			&project.Description,
 			&project.Type,
 			&targetDate,
+			&project.Completed,
+			&completedAt,
 			&project.SortOrder,
 			&project.CreatedAt,
 			&project.UpdatedAt,
@@ -167,6 +181,14 @@ func (s *SQLiteStore) ListProjects(ctx context.Context) ([]models.Project, error
 				return nil, fmt.Errorf("failed to parse project target_date: %w", err)
 			}
 			project.TargetDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse project completed_at: %w", err)
+			}
+			project.CompletedAt = parsedDate
 		}
 
 		projects = append(projects, project)
@@ -184,13 +206,56 @@ func (s *SQLiteStore) UpdateProject(ctx context.Context, project *models.Project
 		targetDate = project.TargetDate.Format("2006-01-02")
 	}
 
+	var completedAt interface{}
+	if project.Completed {
+		if project.CompletedAt == nil {
+			now := time.Now()
+			project.CompletedAt = &now
+		}
+		completedAt = project.CompletedAt.Format("2006-01-02")
+	}
+
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE projects
-		SET name = ?, description = ?, type = ?, target_date = ?, sort_order = ?, updated_at = ?
+		SET name = ?, description = ?, type = ?, target_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
 		WHERE id = ?
-	`, project.Name, project.Description, project.Type, targetDate, project.SortOrder, project.UpdatedAt, project.ID)
+	`, project.Name, project.Description, project.Type, targetDate, project.Completed, completedAt, project.SortOrder, project.UpdatedAt, project.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update project: %w", err)
+	}
+
+	return nil
+}
+
+// MarkProjectComplete marks a project as completed and records the completion date.
+func (s *SQLiteStore) MarkProjectComplete(ctx context.Context, id int64) error {
+	now := time.Now()
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE projects
+		SET completed = TRUE,
+		    completed_at = ?,
+		    updated_at = ?
+		WHERE id = ?
+	`, now.Format("2006-01-02"), now, id)
+	if err != nil {
+		return fmt.Errorf("failed to mark project complete: %w", err)
+	}
+
+	return nil
+}
+
+// MarkProjectIncomplete marks a project as incomplete and clears completion date.
+func (s *SQLiteStore) MarkProjectIncomplete(ctx context.Context, id int64) error {
+	now := time.Now()
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE projects
+		SET completed = FALSE,
+		    completed_at = NULL,
+		    updated_at = ?
+		WHERE id = ?
+	`, now, id)
+	if err != nil {
+		return fmt.Errorf("failed to mark project incomplete: %w", err)
 	}
 
 	return nil

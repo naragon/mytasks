@@ -22,6 +22,21 @@
                     <a href="/">Projects</a> / {{.Project.Name}}
                 </div>
                 <div class="project-actions">
+                    {{if .Project.Completed}}
+                    <button class="btn btn-secondary"
+                            hx-post="/api/projects/{{.Project.ID}}/reopen"
+                            hx-confirm="Reopen this project?"
+                            hx-on::after-request="if(event.detail.successful) window.location.href='/'">
+                        Reopen Project
+                    </button>
+                    {{else}}
+                    <button class="btn btn-primary"
+                            hx-post="/api/projects/{{.Project.ID}}/complete"
+                            hx-confirm="Mark this project as complete?"
+                            hx-on::after-request="if(event.detail.successful) window.location.href='/'">
+                        Mark Project Complete
+                    </button>
+                    {{end}}
                     <button class="btn btn-secondary" onclick="showEditProjectForm({{.Project.ID}})">
                         Edit Project
                     </button>

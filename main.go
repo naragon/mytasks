@@ -68,6 +68,8 @@ func main() {
 	// Project API routes
 	r.Post("/api/projects", h.CreateProject)
 	r.Put("/api/projects/{id}", h.UpdateProject)
+	r.Post("/api/projects/{id}/complete", h.CompleteProject)
+	r.Post("/api/projects/{id}/reopen", h.ReopenProject)
 	r.Delete("/api/projects/{id}", h.DeleteProject)
 	r.Post("/api/projects/reorder", h.ReorderProjects)
 

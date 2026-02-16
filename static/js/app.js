@@ -151,6 +151,20 @@ function toggleTargetDate(select) {
     }
 }
 
+function clearCompletedFilters() {
+    const startDateInput = document.getElementById('start-date');
+    const endDateInput = document.getElementById('end-date');
+
+    if (startDateInput) {
+        startDateInput.value = '';
+    }
+    if (endDateInput) {
+        endDateInput.value = '';
+    }
+
+    window.location.href = '/?tab=completed';
+}
+
 // Handle delete project redirect
 document.addEventListener('htmx:beforeSwap', function(event) {
     if (event.detail.xhr.getResponseHeader('HX-Redirect')) {

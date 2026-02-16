@@ -40,7 +40,11 @@
                     <label for="end-date">Completed To</label>
                     <input type="date" id="end-date" name="end_date" value="{{.CompletedEndDate}}">
                 </div>
-                <button type="submit" class="btn btn-secondary">Apply</button>
+                <div class="completion-filter-actions">
+                    <button type="submit" class="btn btn-secondary">Apply</button>
+                    <a href="/?tab=completed" class="btn btn-secondary">Last 30 Days</a>
+                    <button type="button" class="btn btn-secondary" onclick="clearCompletedFilters()">Clear Filters</button>
+                </div>
             </form>
             {{end}}
 

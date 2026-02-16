@@ -14,6 +14,8 @@ type Store interface {
 	GetProject(ctx context.Context, id int64) (*models.Project, error)
 	ListProjects(ctx context.Context) ([]models.Project, error)
 	UpdateProject(ctx context.Context, project *models.Project) error
+	MarkProjectComplete(ctx context.Context, id int64) error
+	MarkProjectIncomplete(ctx context.Context, id int64) error
 	DeleteProject(ctx context.Context, id int64) error
 	ReorderProjects(ctx context.Context, ids []int64) error
 

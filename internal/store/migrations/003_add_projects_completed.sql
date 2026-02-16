@@ -1,0 +1,2 @@
+ALTER TABLE projects ADD COLUMN completed BOOLEAN DEFAULT FALSE;
+ALTER TABLE projects ADD COLUMN completed_at DATE;

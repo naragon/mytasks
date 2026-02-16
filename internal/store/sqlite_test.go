@@ -519,6 +519,60 @@ func TestReorderTasks(t *testing.T) {
 	}
 }
 
+func TestMarkProjectComplete(t *testing.T) {
+	store := setupTestDB(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Project", Type: "project"}
+	store.CreateProject(ctx, project)
+
+	err := store.MarkProjectComplete(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("MarkProjectComplete failed: %v", err)
+	}
+
+	updated, err := store.GetProject(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("GetProject failed: %v", err)
+	}
+
+	if !updated.Completed {
+		t.Fatal("expected project to be completed")
+	}
+	if updated.CompletedAt == nil {
+		t.Fatal("expected completed_at to be set")
+	}
+}
+
+func TestMarkProjectIncomplete(t *testing.T) {
+	store := setupTestDB(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Project", Type: "project"}
+	store.CreateProject(ctx, project)
+
+	if err := store.MarkProjectComplete(ctx, project.ID); err != nil {
+		t.Fatalf("MarkProjectComplete failed: %v", err)
+	}
+
+	err := store.MarkProjectIncomplete(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("MarkProjectIncomplete failed: %v", err)
+	}
+
+	updated, err := store.GetProject(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("GetProject failed: %v", err)
+	}
+
+	if updated.Completed {
+		t.Fatal("expected project to be incomplete")
+	}
+	if updated.CompletedAt != nil {
+		t.Fatal("expected completed_at to be nil")
+	}
+}
+
 func TestNewSQLiteStore_MigratesLegacyDatabaseAndPreservesData(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "legacy.db")

@@ -13,6 +13,8 @@ type Project struct {
 	Description string     `json:"description"`
 	Type        string     `json:"type"` // "project" or "category"
 	TargetDate  *time.Time `json:"target_date,omitempty"`
+	Completed   bool       `json:"completed"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	SortOrder   int        `json:"sort_order"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

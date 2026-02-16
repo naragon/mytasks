@@ -67,6 +67,10 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	// Load top 3 tasks for each project, filtered by completion status
 	filteredProjects := make([]models.Project, 0, len(projects))
 	for i := range projects {
+		if projects[i].Completed {
+			continue
+		}
+
 		var (
 			tasks []models.Task
 			err   error

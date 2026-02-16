@@ -201,6 +201,18 @@ func bootstrapLegacyMigrations(db *sql.DB, migrations []migration) error {
 		baselineVersion = 2
 	}
 
+	hasProjectCompleted, err := columnExists(db, "projects", "completed")
+	if err != nil {
+		return err
+	}
+	hasProjectCompletedAt, err := columnExists(db, "projects", "completed_at")
+	if err != nil {
+		return err
+	}
+	if hasProjectCompleted && hasProjectCompletedAt {
+		baselineVersion = 3
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin legacy migration bootstrap transaction: %w", err)
