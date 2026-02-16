@@ -13,7 +13,7 @@ type ProjectDetailData struct {
 	Project *models.Project
 }
 
-// ProjectDetail renders the project detail page with all tasks.
+// ProjectDetail renders the project detail page with active (not completed) tasks.
 func (h *Handlers) ProjectDetail(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -29,8 +29,8 @@ func (h *Handlers) ProjectDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load all tasks (no limit)
-	tasks, err := h.store.ListTasksByProject(ctx, id, 0)
+	// Load active tasks only (no limit)
+	tasks, err := h.store.ListTasksByProjectFiltered(ctx, id, false, 0)
 	if err != nil {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
