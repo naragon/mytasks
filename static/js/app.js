@@ -84,15 +84,35 @@ function showTaskForm(projectId) {
 }
 
 function showEditTaskForm(taskId, projectId) {
-    // For inline editing, we could fetch and show a form
-    // For now, redirect to a modal or inline form
     const taskElement = document.getElementById(`task-${taskId}`);
-    if (taskElement) {
-        // Simple inline edit - toggle a form
-        const existingForm = taskElement.querySelector('.task-form');
-        if (existingForm) {
-            existingForm.classList.toggle('hidden');
-            return;
+    if (!taskElement) {
+        return;
+    }
+
+    const formContainer = taskElement.querySelector(`#edit-task-form-${taskId}`);
+    if (!formContainer) {
+        return;
+    }
+
+    const shouldOpen = formContainer.classList.contains('hidden');
+
+    document.querySelectorAll('.inline-task-form').forEach(function(form) {
+        if (form !== formContainer) {
+            form.classList.add('hidden');
+        }
+    });
+
+    if (shouldOpen) {
+        formContainer.classList.remove('hidden');
+    } else {
+        formContainer.classList.add('hidden');
+    }
+
+    if (!formContainer.classList.contains('hidden')) {
+        const descriptionInput = formContainer.querySelector('input[name="description"]');
+        if (descriptionInput) {
+            descriptionInput.focus();
+            descriptionInput.select();
         }
     }
 }

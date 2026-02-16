@@ -8,9 +8,9 @@ import (
 
 // HomeData holds data for the home page template.
 type HomeData struct {
-	Title     string
-	Tab       string // "active" or "completed"
-	Projects  []models.Project
+	Title    string
+	Tab      string // "active" or "completed"
+	Projects []models.Project
 }
 
 // Home renders the home page with all projects and their tasks filtered by tab.

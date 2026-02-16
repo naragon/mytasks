@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -15,6 +16,30 @@ import (
 // SQLiteStore implements the Store interface using SQLite.
 type SQLiteStore struct {
 	db *sql.DB
+}
+
+var sqliteDateLayouts = []string{
+	"2006-01-02",
+	time.RFC3339,
+	"2006-01-02 15:04:05",
+	"2006-01-02 15:04:05-07:00",
+	"2006-01-02 15:04:05.999999999-07:00",
+	"2006-01-02T15:04:05.999999999-07:00",
+}
+
+func parseSQLiteDate(value string) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+
+	for _, layout := range sqliteDateLayouts {
+		if t, err := time.Parse(layout, value); err == nil {
+			return &t, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid date format: %q", value)
 }
 
 // NewSQLiteStore creates a new SQLite store with the given database path.
@@ -127,8 +152,11 @@ func (s *SQLiteStore) GetProject(ctx context.Context, id int64) (*models.Project
 	}
 
 	if targetDate.Valid {
-		t, _ := time.Parse("2006-01-02", targetDate.String)
-		project.TargetDate = &t
+		parsedDate, err := parseSQLiteDate(targetDate.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse project target_date: %w", err)
+		}
+		project.TargetDate = parsedDate
 	}
 
 	return project, nil
@@ -165,8 +193,11 @@ func (s *SQLiteStore) ListProjects(ctx context.Context) ([]models.Project, error
 		}
 
 		if targetDate.Valid {
-			t, _ := time.Parse("2006-01-02", targetDate.String)
-			project.TargetDate = &t
+			parsedDate, err := parseSQLiteDate(targetDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse project target_date: %w", err)
+			}
+			project.TargetDate = parsedDate
 		}
 
 		projects = append(projects, project)
@@ -284,8 +315,11 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 	}
 
 	if dueDate.Valid {
-		t, _ := time.Parse("2006-01-02", dueDate.String)
-		task.DueDate = &t
+		parsedDate, err := parseSQLiteDate(dueDate.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+		}
+		task.DueDate = parsedDate
 	}
 
 	return task, nil
@@ -329,8 +363,11 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 		}
 
 		if dueDate.Valid {
-			t, _ := time.Parse("2006-01-02", dueDate.String)
-			task.DueDate = &t
+			parsedDate, err := parseSQLiteDate(dueDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			}
+			task.DueDate = parsedDate
 		}
 
 		tasks = append(tasks, task)
@@ -377,8 +414,11 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 		}
 
 		if dueDate.Valid {
-			t, _ := time.Parse("2006-01-02", dueDate.String)
-			task.DueDate = &t
+			parsedDate, err := parseSQLiteDate(dueDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			}
+			task.DueDate = parsedDate
 		}
 
 		tasks = append(tasks, task)

@@ -34,5 +34,9 @@
             &#10005;
         </button>
     </div>
+
+    <div class="form-container hidden inline-task-form" id="edit-task-form-{{.ID}}">
+        {{template "task_form.html" .}}
+    </div>
 </div>
 {{end}}
