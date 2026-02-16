@@ -1,0 +1,83 @@
+{{define "project_detail.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - My Tasks</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1><a href="/">My Tasks</a></h1>
+        </div>
+    </header>
+    <main class="container">
+        <div class="project-detail-page">
+            <div class="page-header">
+                <div class="breadcrumb">
+                    <a href="/">Projects</a> / {{.Project.Name}}
+                </div>
+                <div class="project-actions">
+                    <button class="btn btn-secondary" onclick="showEditProjectForm({{.Project.ID}})">
+                        Edit Project
+                    </button>
+                    <button class="btn btn-danger"
+                            hx-delete="/api/projects/{{.Project.ID}}"
+                            hx-confirm="Delete this project and all its tasks?"
+                            hx-on::after-request="if(event.detail.successful) window.location.href='/'">
+                        Delete Project
+                    </button>
+                </div>
+            </div>
+
+            <div class="project-info">
+                <h2>{{.Project.Name}}</h2>
+                {{if .Project.Description}}
+                <p class="project-description">{{.Project.Description}}</p>
+                {{end}}
+                <div class="project-meta">
+                    <span class="badge {{if .Project.IsCategory}}badge-category{{else}}badge-project{{end}}">
+                        {{.Project.Type}}
+                    </span>
+                    {{if .Project.TargetDate}}
+                    <span class="target-date {{if .Project.IsOverdue}}overdue{{end}}">
+                        Target: {{.Project.TargetDate.Format "Jan 2, 2006"}}
+                    </span>
+                    {{end}}
+                </div>
+            </div>
+
+            <div id="edit-project-form" class="form-container hidden">
+                {{template "project_form.html" .Project}}
+            </div>
+
+            <div class="tasks-section">
+                <div class="section-header">
+                    <h3>Tasks</h3>
+                    <button class="btn btn-primary btn-sm" onclick="showTaskForm({{.Project.ID}})">
+                        + Add Task
+                    </button>
+                </div>
+
+                <div id="new-task-form" class="form-container hidden">
+                    {{template "task_form.html" (dict "ProjectID" .Project.ID)}}
+                </div>
+
+                <div id="tasks-list" class="tasks-list" data-project-id="{{.Project.ID}}">
+                    {{range .Project.Tasks}}
+                    {{template "task_item.html" .}}
+                    {{else}}
+                    <p class="empty-state">No tasks yet. Add one to get started!</p>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

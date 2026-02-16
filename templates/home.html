@@ -1,0 +1,54 @@
+{{define "home.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - My Tasks</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1><a href="/">My Tasks</a></h1>
+        </div>
+    </header>
+    <main class="container">
+        <div class="home-page">
+            <div class="page-header">
+                <h2>Projects</h2>
+                <button class="btn btn-primary" onclick="showProjectForm()">
+                    + New Project
+                </button>
+            </div>
+
+            <div class="tabs">
+                <a href="/?tab=active" class="tab {{if eq .Tab "active"}}active{{end}}">Active</a>
+                <a href="/?tab=completed" class="tab {{if eq .Tab "completed"}}active{{end}}">Completed</a>
+            </div>
+
+            <div id="new-project-form" class="form-container hidden">
+                {{template "project_form.html" dict}}
+            </div>
+
+            <div id="projects-list" class="projects-grid">
+                {{range .Projects}}
+                {{template "project_card.html" .}}
+                {{else}}
+                <p class="empty-state">
+                    {{if eq $.Tab "active"}}
+                    No active tasks. All caught up!
+                    {{else}}
+                    No completed tasks yet.
+                    {{end}}
+                </p>
+                {{end}}
+            </div>
+        </div>
+    </main>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

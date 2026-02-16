@@ -1,0 +1,50 @@
+{{define "project_form.html"}}
+<form class="form project-form"
+      {{if .ID}}
+      hx-put="/api/projects/{{.ID}}"
+      hx-target="#project-{{.ID}}"
+      hx-swap="outerHTML"
+      {{else}}
+      hx-post="/api/projects"
+      hx-target="#projects-list"
+      hx-swap="beforeend"
+      {{end}}
+      hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();">
+    <div class="form-group">
+        <label for="project-name">Name *</label>
+        <input type="text"
+               id="project-name"
+               name="name"
+               value="{{.Name}}"
+               required
+               placeholder="Project name">
+    </div>
+    <div class="form-group">
+        <label for="project-description">Description</label>
+        <textarea id="project-description"
+                  name="description"
+                  rows="2"
+                  placeholder="Optional description">{{.Description}}</textarea>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="project-type">Type *</label>
+            <select id="project-type" name="type" required onchange="toggleTargetDate(this)">
+                <option value="project" {{if eq .Type "project"}}selected{{end}}>Project</option>
+                <option value="category" {{if eq .Type "category"}}selected{{end}}>Category</option>
+            </select>
+        </div>
+        <div class="form-group" id="target-date-group">
+            <label for="project-target-date">Target Date</label>
+            <input type="date"
+                   id="project-target-date"
+                   name="target_date"
+                   {{if .TargetDate}}value="{{.TargetDate.Format "2006-01-02"}}"{{end}}>
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="hideForm(this)">Cancel</button>
+        <button type="submit" class="btn btn-primary">{{if .ID}}Update{{else}}Create{{end}} Project</button>
+    </div>
+</form>
+{{end}}

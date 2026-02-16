@@ -1,0 +1,39 @@
+{{define "project_card.html"}}
+<div class="project-card" id="project-{{.ID}}" data-id="{{.ID}}">
+    <div class="project-card-header">
+        <div class="drag-handle">&#8942;&#8942;</div>
+        <h3>
+            <a href="/projects/{{.ID}}">{{.Name}}</a>
+        </h3>
+        <div class="project-card-badges">
+            <span class="badge {{if .IsCategory}}badge-category{{else}}badge-project{{end}}">
+                {{.Type}}
+            </span>
+            {{if .TargetDate}}
+            <span class="target-date {{if .IsOverdue}}overdue{{end}}">
+                {{.TargetDate.Format "Jan 2"}}
+            </span>
+            {{end}}
+        </div>
+    </div>
+    {{if .Description}}
+    <p class="project-card-description">{{.Description}}</p>
+    {{end}}
+    <div class="project-card-tasks">
+        {{range .Tasks}}
+        <div class="task-preview {{if .Completed}}completed{{end}} priority-{{.Priority}}">
+            <span class="priority-dot"></span>
+            <span class="task-text">{{.Description}}</span>
+            {{if .DueDate}}
+            <span class="due-date {{if .IsOverdue}}overdue{{end}}">{{.DueDate.Format "Jan 2"}}</span>
+            {{end}}
+        </div>
+        {{else}}
+        <p class="no-tasks">No tasks</p>
+        {{end}}
+    </div>
+    <div class="project-card-footer">
+        <a href="/projects/{{.ID}}" class="btn btn-link">View All Tasks &rarr;</a>
+    </div>
+</div>
+{{end}}

@@ -1,0 +1,54 @@
+{{define "task_form.html"}}
+<form class="form task-form"
+      {{if .ID}}
+      hx-put="/api/tasks/{{.ID}}"
+      hx-target="#task-{{.ID}}"
+      hx-swap="outerHTML"
+      {{else}}
+      hx-post="/api/projects/{{.ProjectID}}/tasks"
+      hx-target="#tasks-list"
+      hx-swap="beforeend"
+      {{end}}
+      hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();">
+    <div class="form-group">
+        <label for="task-description">Description *</label>
+        <input type="text"
+               id="task-description"
+               name="description"
+               value="{{.Description}}"
+               required
+               placeholder="What needs to be done?">
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="task-priority">Priority *</label>
+            <select id="task-priority" name="priority" required>
+                <option value="high" {{if eq .Priority "high"}}selected{{end}}>High</option>
+                <option value="medium" {{if or (eq .Priority "medium") (eq .Priority "")}}selected{{end}}>Medium</option>
+                <option value="low" {{if eq .Priority "low"}}selected{{end}}>Low</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="task-due-date">Due Date</label>
+            <input type="date"
+                   id="task-due-date"
+                   name="due_date"
+                   {{if .DueDate}}value="{{.DueDate.Format "2006-01-02"}}"{{end}}>
+        </div>
+    </div>
+    {{if .ID}}
+    <div class="form-group form-checkbox">
+        <input type="checkbox"
+               id="task-completed"
+               name="completed"
+               value="true"
+               {{if .Completed}}checked{{end}}>
+        <label for="task-completed">Completed</label>
+    </div>
+    {{end}}
+    <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="hideForm(this)">Cancel</button>
+        <button type="submit" class="btn btn-primary">{{if .ID}}Update{{else}}Add{{end}} Task</button>
+    </div>
+</form>
+{{end}}
