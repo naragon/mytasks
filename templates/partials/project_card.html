@@ -24,7 +24,14 @@
         <div class="task-preview {{if .Completed}}completed{{end}} priority-{{.Priority}}">
             <span class="priority-dot"></span>
             <span class="task-text">{{.Description}}</span>
-            {{if .DueDate}}
+            {{if eq $.ViewTab "completed"}}
+            <span class="due-date">
+                Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{else}}None{{end}}
+            </span>
+            <span class="completion-date">
+                Completed: {{if .CompletedAt}}{{.CompletedAt.Format "Jan 2, 2006"}}{{else}}Unknown{{end}}
+            </span>
+            {{else if .DueDate}}
             <span class="due-date {{if .IsOverdue}}overdue{{end}}">{{.DueDate.Format "Jan 2"}}</span>
             {{end}}
         </div>

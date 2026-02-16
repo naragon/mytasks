@@ -2,10 +2,15 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"mytasks/internal/models"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func setupTestDB(t *testing.T) *SQLiteStore {
@@ -404,6 +409,85 @@ func TestToggleTaskComplete(t *testing.T) {
 	if got.Completed {
 		t.Error("expected task to be incomplete")
 	}
+	if got.CompletedAt != nil {
+		t.Error("expected completed_at to be cleared when task is incomplete")
+	}
+}
+
+func TestToggleTaskComplete_SetsCompletedAt(t *testing.T) {
+	store := setupTestDB(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Test", Type: "project"}
+	store.CreateProject(ctx, project)
+
+	task := &models.Task{
+		ProjectID:   project.ID,
+		Description: "Test",
+		Priority:    "medium",
+	}
+	store.CreateTask(ctx, task)
+
+	err := store.ToggleTaskComplete(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("ToggleTaskComplete failed: %v", err)
+	}
+
+	got, _ := store.GetTask(ctx, task.ID)
+	if !got.Completed {
+		t.Fatal("expected task to be completed")
+	}
+	if got.CompletedAt == nil {
+		t.Fatal("expected completed_at to be set")
+	}
+	if got.CompletedAt.Format("2006-01-02") != time.Now().Format("2006-01-02") {
+		t.Fatalf("expected completed_at to be today, got %s", got.CompletedAt.Format("2006-01-02"))
+	}
+}
+
+func TestListTasksByProjectCompletedBetween(t *testing.T) {
+	store := setupTestDB(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Test", Type: "project"}
+	store.CreateProject(ctx, project)
+
+	first := &models.Task{ProjectID: project.ID, Description: "First", Priority: "high"}
+	second := &models.Task{ProjectID: project.ID, Description: "Second", Priority: "medium"}
+	store.CreateTask(ctx, first)
+	store.CreateTask(ctx, second)
+
+	if err := store.ToggleTaskComplete(ctx, first.ID); err != nil {
+		t.Fatalf("ToggleTaskComplete(first) failed: %v", err)
+	}
+	if err := store.ToggleTaskComplete(ctx, second.ID); err != nil {
+		t.Fatalf("ToggleTaskComplete(second) failed: %v", err)
+	}
+
+	if _, err := store.db.ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, "2025-01-10", first.ID); err != nil {
+		t.Fatalf("failed to set first completed_at: %v", err)
+	}
+	if _, err := store.db.ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, "2025-02-05", second.ID); err != nil {
+		t.Fatalf("failed to set second completed_at: %v", err)
+	}
+
+	from := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2025, 2, 28, 0, 0, 0, 0, time.UTC)
+
+	tasks, err := store.ListTasksByProjectCompletedBetween(ctx, project.ID, &from, &to, 0)
+	if err != nil {
+		t.Fatalf("ListTasksByProjectCompletedBetween failed: %v", err)
+	}
+
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task in range, got %d", len(tasks))
+	}
+	if tasks[0].Description != "Second" {
+		t.Fatalf("expected task Second, got %s", tasks[0].Description)
+	}
+	if tasks[0].CompletedAt == nil || tasks[0].CompletedAt.Format("2006-01-02") != "2025-02-05" {
+		t.Fatalf("expected completed_at 2025-02-05, got %#v", tasks[0].CompletedAt)
+	}
 }
 
 func TestReorderTasks(t *testing.T) {
@@ -432,5 +516,124 @@ func TestReorderTasks(t *testing.T) {
 		if got[i].Description != desc {
 			t.Errorf("position %d: expected %q, got %q", i, desc, got[i].Description)
 		}
+	}
+}
+
+func TestNewSQLiteStore_MigratesLegacyDatabaseAndPreservesData(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "legacy.db")
+
+	legacyDB, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+	if err != nil {
+		t.Fatalf("failed to open legacy db: %v", err)
+	}
+	t.Cleanup(func() { legacyDB.Close() })
+
+	legacySchema := `
+	CREATE TABLE IF NOT EXISTS projects (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		type TEXT NOT NULL CHECK(type IN ('project', 'category')),
+		target_date DATE,
+		sort_order INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS tasks (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project_id INTEGER NOT NULL,
+		description TEXT NOT NULL,
+		priority TEXT NOT NULL CHECK(priority IN ('high', 'medium', 'low')),
+		due_date DATE,
+		completed BOOLEAN DEFAULT FALSE,
+		sort_order INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+	CREATE INDEX IF NOT EXISTS idx_projects_sort_order ON projects(sort_order);
+	CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order);
+	`
+
+	if _, err := legacyDB.Exec(legacySchema); err != nil {
+		t.Fatalf("failed to create legacy schema: %v", err)
+	}
+
+	if _, err := legacyDB.Exec(`INSERT INTO projects (id, name, type, sort_order) VALUES (1, 'Legacy Project', 'project', 1)`); err != nil {
+		t.Fatalf("failed to seed legacy project: %v", err)
+	}
+	if _, err := legacyDB.Exec(`INSERT INTO tasks (id, project_id, description, priority, completed, sort_order) VALUES (1, 1, 'Legacy Task', 'medium', 0, 1)`); err != nil {
+		t.Fatalf("failed to seed legacy task: %v", err)
+	}
+
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("failed to close legacy db before reopening: %v", err)
+	}
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open sqlite store with migrations: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	ctx := context.Background()
+	project, err := store.GetProject(ctx, 1)
+	if err != nil {
+		t.Fatalf("expected legacy project to persist: %v", err)
+	}
+	if project.Name != "Legacy Project" {
+		t.Fatalf("expected Legacy Project, got %s", project.Name)
+	}
+
+	task, err := store.GetTask(ctx, 1)
+	if err != nil {
+		t.Fatalf("expected legacy task to persist: %v", err)
+	}
+	if task.Description != "Legacy Task" {
+		t.Fatalf("expected Legacy Task, got %s", task.Description)
+	}
+
+	var hasCompletedAt bool
+	rows, err := store.db.Query(`PRAGMA table_info(tasks)`)
+	if err != nil {
+		t.Fatalf("failed to inspect tasks table: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			typeName   string
+			notNull    int
+			defaultVal interface{}
+			pk         int
+		)
+		if err := rows.Scan(&cid, &name, &typeName, &notNull, &defaultVal, &pk); err != nil {
+			t.Fatalf("failed to scan pragma row: %v", err)
+		}
+		if name == "completed_at" {
+			hasCompletedAt = true
+		}
+	}
+
+	if !hasCompletedAt {
+		t.Fatal("expected completed_at column to exist after migrations")
+	}
+
+	var migrationCount int
+	if err := store.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrationCount); err != nil {
+		t.Fatalf("failed to count schema migrations: %v", err)
+	}
+	if migrationCount < 2 {
+		t.Fatalf("expected at least 2 applied migrations, got %d", migrationCount)
+	}
+
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("expected db file to exist: %v", err)
 	}
 }

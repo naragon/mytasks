@@ -14,6 +14,7 @@ type Task struct {
 	Priority    string     `json:"priority"` // "high", "medium", "low"
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	Completed   bool       `json:"completed"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	SortOrder   int        `json:"sort_order"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

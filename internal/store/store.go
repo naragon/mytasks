@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"mytasks/internal/models"
 )
@@ -21,6 +22,7 @@ type Store interface {
 	GetTask(ctx context.Context, id int64) (*models.Task, error)
 	ListTasksByProject(ctx context.Context, projectID int64, limit int) ([]models.Task, error)
 	ListTasksByProjectFiltered(ctx context.Context, projectID int64, completed bool, limit int) ([]models.Task, error)
+	ListTasksByProjectCompletedBetween(ctx context.Context, projectID int64, from, to *time.Time, limit int) ([]models.Task, error)
 	UpdateTask(ctx context.Context, task *models.Task) error
 	DeleteTask(ctx context.Context, id int64) error
 	ToggleTaskComplete(ctx context.Context, id int64) error

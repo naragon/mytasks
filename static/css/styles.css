@@ -84,6 +84,19 @@ a:hover {
     border-bottom: 2px solid var(--color-border);
 }
 
+.completion-filters {
+    display: flex;
+    gap: 0.75rem;
+    align-items: end;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.completion-filters .form-group {
+    margin-bottom: 0;
+    min-width: 180px;
+}
+
 .tab {
     padding: 0.75rem 1.5rem;
     font-weight: 500;
@@ -251,9 +264,13 @@ a:hover {
 }
 
 /* Dates */
-.target-date, .due-date {
+.target-date, .due-date, .completion-date {
     font-size: 0.75rem;
     color: var(--color-text-muted);
+}
+
+.completion-date {
+    margin-left: 0.5rem;
 }
 
 .target-date.overdue, .due-date.overdue {

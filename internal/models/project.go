@@ -16,6 +16,7 @@ type Project struct {
 	SortOrder   int        `json:"sort_order"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
+	ViewTab     string     `json:"-"`
 
 	// Tasks holds the tasks for this project (populated by queries)
 	Tasks []Task `json:"tasks,omitempty"`

@@ -29,6 +29,21 @@
                 <a href="/?tab=completed" class="tab {{if eq .Tab "completed"}}active{{end}}">Completed</a>
             </div>
 
+            {{if eq .Tab "completed"}}
+            <form class="completion-filters" method="GET" action="/">
+                <input type="hidden" name="tab" value="completed">
+                <div class="form-group">
+                    <label for="start-date">Completed From</label>
+                    <input type="date" id="start-date" name="start_date" value="{{.CompletedStartDate}}">
+                </div>
+                <div class="form-group">
+                    <label for="end-date">Completed To</label>
+                    <input type="date" id="end-date" name="end_date" value="{{.CompletedEndDate}}">
+                </div>
+                <button type="submit" class="btn btn-secondary">Apply</button>
+            </form>
+            {{end}}
+
             <div id="new-project-form" class="form-container hidden">
                 {{template "project_form.html" dict}}
             </div>
@@ -39,9 +54,9 @@
                 {{else}}
                 <p class="empty-state">
                     {{if eq $.Tab "active"}}
-                    No active tasks. All caught up!
+                    No projects yet. Create one to get started!
                     {{else}}
-                    No completed tasks yet.
+                    No completed tasks found in this date range.
                     {{end}}
                 </p>
                 {{end}}

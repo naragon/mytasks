@@ -59,38 +59,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 }
 
 func (s *SQLiteStore) migrate() error {
-	schema := `
-	CREATE TABLE IF NOT EXISTS projects (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		description TEXT DEFAULT '',
-		type TEXT NOT NULL CHECK(type IN ('project', 'category')),
-		target_date DATE,
-		sort_order INTEGER DEFAULT 0,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-
-	CREATE TABLE IF NOT EXISTS tasks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		project_id INTEGER NOT NULL,
-		description TEXT NOT NULL,
-		priority TEXT NOT NULL CHECK(priority IN ('high', 'medium', 'low')),
-		due_date DATE,
-		completed BOOLEAN DEFAULT FALSE,
-		sort_order INTEGER DEFAULT 0,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
-	CREATE INDEX IF NOT EXISTS idx_projects_sort_order ON projects(sort_order);
-	CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(sort_order);
-	`
-
-	_, err := s.db.Exec(schema)
-	return err
+	return runMigrations(s.db)
 }
 
 // Close closes the database connection.
@@ -271,10 +240,19 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 		dueDate = task.DueDate.Format("2006-01-02")
 	}
 
+	var completedAt interface{}
+	if task.Completed {
+		if task.CompletedAt == nil {
+			t := now
+			task.CompletedAt = &t
+		}
+		completedAt = task.CompletedAt.Format("2006-01-02")
+	}
+
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO tasks (project_id, description, priority, due_date, completed, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, task.ProjectID, task.Description, task.Priority, dueDate, task.Completed, task.SortOrder, now, now)
+		INSERT INTO tasks (project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, task.ProjectID, task.Description, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
 	}
@@ -292,9 +270,10 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, error) {
 	task := &models.Task{}
 	var dueDate sql.NullString
+	var completedAt sql.NullString
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, project_id, description, priority, due_date, completed, sort_order, created_at, updated_at
+		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE id = ?
 	`, id).Scan(
 		&task.ID,
@@ -303,6 +282,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 		&task.Priority,
 		&dueDate,
 		&task.Completed,
+		&completedAt,
 		&task.SortOrder,
 		&task.CreatedAt,
 		&task.UpdatedAt,
@@ -322,6 +302,14 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 		task.DueDate = parsedDate
 	}
 
+	if completedAt.Valid {
+		parsedDate, err := parseSQLiteDate(completedAt.String)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+		}
+		task.CompletedAt = parsedDate
+	}
+
 	return task, nil
 }
 
@@ -329,7 +317,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 // If limit is 0, all tasks are returned.
 func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, priority, due_date, completed, sort_order, created_at, updated_at
+		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? ORDER BY sort_order ASC
 	`
 	if limit > 0 {
@@ -346,6 +334,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 	for rows.Next() {
 		var task models.Task
 		var dueDate sql.NullString
+		var completedAt sql.NullString
 
 		err := rows.Scan(
 			&task.ID,
@@ -354,6 +343,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 			&task.Priority,
 			&dueDate,
 			&task.Completed,
+			&completedAt,
 			&task.SortOrder,
 			&task.CreatedAt,
 			&task.UpdatedAt,
@@ -370,6 +360,14 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 			task.DueDate = parsedDate
 		}
 
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			}
+			task.CompletedAt = parsedDate
+		}
+
 		tasks = append(tasks, task)
 	}
 
@@ -380,7 +378,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 // If limit is 0, all matching tasks are returned.
 func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID int64, completed bool, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, priority, due_date, completed, sort_order, created_at, updated_at
+		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? AND completed = ? ORDER BY sort_order ASC
 	`
 	if limit > 0 {
@@ -397,6 +395,7 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 	for rows.Next() {
 		var task models.Task
 		var dueDate sql.NullString
+		var completedAt sql.NullString
 
 		err := rows.Scan(
 			&task.ID,
@@ -405,6 +404,7 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 			&task.Priority,
 			&dueDate,
 			&task.Completed,
+			&completedAt,
 			&task.SortOrder,
 			&task.CreatedAt,
 			&task.UpdatedAt,
@@ -421,6 +421,89 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 			task.DueDate = parsedDate
 		}
 
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			}
+			task.CompletedAt = parsedDate
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks, rows.Err()
+}
+
+// ListTasksByProjectCompletedBetween retrieves completed tasks for a project within a completion date range.
+// When from/to are nil they are not applied as filters. If limit is 0, all matching tasks are returned.
+func (s *SQLiteStore) ListTasksByProjectCompletedBetween(ctx context.Context, projectID int64, from, to *time.Time, limit int) ([]models.Task, error) {
+	query := `
+		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM tasks WHERE project_id = ? AND completed = TRUE AND completed_at IS NOT NULL
+	`
+	args := []interface{}{projectID}
+
+	if from != nil {
+		query += ` AND completed_at >= ?`
+		args = append(args, from.Format("2006-01-02"))
+	}
+
+	if to != nil {
+		query += ` AND completed_at <= ?`
+		args = append(args, to.Format("2006-01-02"))
+	}
+
+	query += ` ORDER BY completed_at DESC, sort_order ASC`
+
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list completed tasks by range: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		var dueDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&task.ID,
+			&task.ProjectID,
+			&task.Description,
+			&task.Priority,
+			&dueDate,
+			&task.Completed,
+			&completedAt,
+			&task.SortOrder,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan completed task: %w", err)
+		}
+
+		if dueDate.Valid {
+			parsedDate, err := parseSQLiteDate(dueDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			}
+			task.DueDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			}
+			task.CompletedAt = parsedDate
+		}
+
 		tasks = append(tasks, task)
 	}
 
@@ -431,16 +514,42 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 func (s *SQLiteStore) UpdateTask(ctx context.Context, task *models.Task) error {
 	task.UpdatedAt = time.Now()
 
+	var wasCompleted bool
+	var existingCompletedAt sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT completed, completed_at FROM tasks WHERE id = ?`, task.ID).Scan(&wasCompleted, &existingCompletedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("task not found: %d", task.ID)
+		}
+		return fmt.Errorf("failed to load task completion state: %w", err)
+	}
+
 	var dueDate interface{}
 	if task.DueDate != nil {
 		dueDate = task.DueDate.Format("2006-01-02")
 	}
 
-	_, err := s.db.ExecContext(ctx, `
+	var completedAt interface{}
+	if task.Completed {
+		switch {
+		case !wasCompleted:
+			now := time.Now()
+			task.CompletedAt = &now
+			completedAt = now.Format("2006-01-02")
+		case task.CompletedAt != nil:
+			completedAt = task.CompletedAt.Format("2006-01-02")
+		case existingCompletedAt.Valid:
+			completedAt = existingCompletedAt.String
+		}
+	} else {
+		task.CompletedAt = nil
+	}
+
+	_, err = s.db.ExecContext(ctx, `
 		UPDATE tasks
-		SET description = ?, priority = ?, due_date = ?, completed = ?, sort_order = ?, updated_at = ?
+		SET description = ?, priority = ?, due_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
 		WHERE id = ?
-	`, task.Description, task.Priority, dueDate, task.Completed, task.SortOrder, task.UpdatedAt, task.ID)
+	`, task.Description, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, task.UpdatedAt, task.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
 	}
@@ -459,9 +568,17 @@ func (s *SQLiteStore) DeleteTask(ctx context.Context, id int64) error {
 
 // ToggleTaskComplete toggles the completed status of a task.
 func (s *SQLiteStore) ToggleTaskComplete(ctx context.Context, id int64) error {
+	now := time.Now()
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE tasks SET completed = NOT completed, updated_at = ? WHERE id = ?
-	`, time.Now(), id)
+		UPDATE tasks
+		SET completed = NOT completed,
+		    completed_at = CASE
+		        WHEN completed = 0 THEN ?
+		        ELSE NULL
+		    END,
+		    updated_at = ?
+		WHERE id = ?
+	`, now.Format("2006-01-02"), now, id)
 	if err != nil {
 		return fmt.Errorf("failed to toggle task complete: %w", err)
 	}
