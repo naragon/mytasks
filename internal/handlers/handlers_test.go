@@ -194,6 +194,50 @@ func TestUpdateProjectHandler_Success(t *testing.T) {
 	}
 }
 
+func TestUpdateProjectHandler_CanChangeToCategoryAndSetDescription(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	targetDate := "2026-03-01"
+	project := &models.Project{Name: "Original", Type: "project", TargetDate: parseDate(targetDate)}
+	s.CreateProject(ctx, project)
+
+	form := url.Values{}
+	form.Set("name", "Updated Name")
+	form.Set("type", "category")
+	form.Set("description", "Updated description")
+	form.Set("target_date", targetDate)
+
+	req := httptest.NewRequest("PUT", "/api/projects/1", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdateProject(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	updated, err := s.GetProject(ctx, project.ID)
+	if err != nil {
+		t.Fatalf("GetProject failed: %v", err)
+	}
+
+	if updated.Type != "category" {
+		t.Fatalf("expected type category, got %s", updated.Type)
+	}
+	if updated.Description != "Updated description" {
+		t.Fatalf("expected description to persist, got %q", updated.Description)
+	}
+	if updated.TargetDate != nil {
+		t.Fatalf("expected target date to be nil for category, got %v", updated.TargetDate)
+	}
+}
+
 func TestDeleteProjectHandler_Success(t *testing.T) {
 	h, s := setupTestHandlers(t)
 	ctx := context.Background()

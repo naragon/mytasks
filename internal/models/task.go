@@ -10,6 +10,7 @@ import (
 type Task struct {
 	ID          int64      `json:"id"`
 	ProjectID   int64      `json:"project_id"`
+	ProjectName string     `json:"-"`
 	Description string     `json:"description"`
 	Priority    string     `json:"priority"` // "high", "medium", "low"
 	DueDate     *time.Time `json:"due_date,omitempty"`

@@ -27,6 +27,7 @@
             <div class="tabs">
                 <a href="/?tab=active" class="tab {{if eq .Tab "active"}}active{{end}}">Active</a>
                 <a href="/?tab=completed" class="tab {{if eq .Tab "completed"}}active{{end}}">Completed</a>
+                <a href="/?tab=upcoming" class="tab {{if eq .Tab "upcoming"}}active{{end}}">Upcoming</a>
             </div>
 
             {{if eq .Tab "completed"}}
@@ -48,10 +49,37 @@
             </form>
             {{end}}
 
+            {{if eq .Tab "upcoming"}}
+            <div class="upcoming-filters">
+                <span class="filter-label">Window:</span>
+                <a href="/?tab=upcoming&days=7" class="btn btn-secondary {{if eq .UpcomingDays 7}}active{{end}}">7 Days</a>
+                <a href="/?tab=upcoming&days=14" class="btn btn-secondary {{if eq .UpcomingDays 14}}active{{end}}">14 Days</a>
+                <a href="/?tab=upcoming&days=30" class="btn btn-secondary {{if or (eq .UpcomingDays 30) (eq .UpcomingDays 0)}}active{{end}}">30 Days</a>
+            </div>
+            {{end}}
+
             <div id="new-project-form" class="form-container hidden">
                 {{template "project_form.html" dict}}
             </div>
 
+            {{if eq .Tab "upcoming"}}
+            <div id="upcoming-list" class="upcoming-list">
+                {{range .UpcomingTasks}}
+                <div class="upcoming-task priority-{{.Priority}}">
+                    <div class="upcoming-main">
+                        <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                        <span class="upcoming-text">{{.Description}}</span>
+                    </div>
+                    <div class="upcoming-meta">
+                        <span class="due-date">Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{end}}</span>
+                        <span class="project-name">Project: {{.ProjectName}}</span>
+                    </div>
+                </div>
+                {{else}}
+                <p class="empty-state">No upcoming tasks in the next {{.UpcomingDays}} days.</p>
+                {{end}}
+            </div>
+            {{else}}
             <div id="projects-list" class="projects-grid">
                 {{range .Projects}}
                 {{template "project_card.html" .}}
@@ -65,6 +93,7 @@
                 </p>
                 {{end}}
             </div>
+            {{end}}
         </div>
     </main>
     <script src="/static/js/app.js"></script>

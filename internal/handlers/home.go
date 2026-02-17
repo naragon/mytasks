@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
+	"strconv"
 	"time"
 
 	"mytasks/internal/models"
@@ -10,8 +12,10 @@ import (
 // HomeData holds data for the home page template.
 type HomeData struct {
 	Title              string
-	Tab                string // "active" or "completed"
+	Tab                string // "active", "completed", or "upcoming"
 	Projects           []models.Project
+	UpcomingTasks      []models.Task
+	UpcomingDays       int
 	CompletedStartDate string
 	CompletedEndDate   string
 }
@@ -22,7 +26,7 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 
 	// Get the tab from query parameter, default to "active"
 	tab := r.URL.Query().Get("tab")
-	if tab != "completed" {
+	if tab != "completed" && tab != "upcoming" {
 		tab = "active"
 	}
 
@@ -34,6 +38,23 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 
 	// Filter tasks based on tab (completed = true for completed tab, false for active)
 	showCompleted := tab == "completed"
+	showUpcoming := tab == "upcoming"
+
+	upcomingDays := 30
+	if showUpcoming {
+		if v := r.URL.Query().Get("days"); v != "" {
+			days, err := strconv.Atoi(v)
+			if err != nil {
+				respondError(w, http.StatusBadRequest, "invalid days")
+				return
+			}
+			if days != 7 && days != 14 && days != 30 {
+				respondError(w, http.StatusBadRequest, "days must be 7, 14, or 30")
+				return
+			}
+			upcomingDays = days
+		}
+	}
 
 	now := time.Now()
 	completedEnd := now
@@ -64,8 +85,12 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Load top 3 tasks for each project, filtered by completion status
+	upcomingStart := now
+	upcomingEnd := now.AddDate(0, 0, upcomingDays)
+
+	// Load projects/tasks based on selected tab.
 	filteredProjects := make([]models.Project, 0, len(projects))
+	upcomingTasks := make([]models.Task, 0)
 	for i := range projects {
 		if projects[i].Completed {
 			continue
@@ -78,6 +103,8 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 
 		if showCompleted {
 			tasks, err = h.store.ListTasksByProjectCompletedBetween(ctx, projects[i].ID, &completedStart, &completedEnd, 0)
+		} else if showUpcoming {
+			tasks, err = h.store.ListTasksByProjectFiltered(ctx, projects[i].ID, false, 0)
 		} else {
 			tasks, err = h.store.ListTasksByProjectFiltered(ctx, projects[i].ID, false, 3)
 		}
@@ -89,15 +116,43 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 		projects[i].ViewTab = tab
 		projects[i].Tasks = tasks
 
+		if showUpcoming {
+			for _, task := range tasks {
+				if task.DueDate == nil {
+					continue
+				}
+				due := task.DueDate.Format("2006-01-02")
+				if due < upcomingStart.Format("2006-01-02") || due > upcomingEnd.Format("2006-01-02") {
+					continue
+				}
+				task.ProjectName = projects[i].Name
+				upcomingTasks = append(upcomingTasks, task)
+			}
+			continue
+		}
+
 		if !showCompleted || len(tasks) > 0 {
 			filteredProjects = append(filteredProjects, projects[i])
 		}
+	}
+
+	if showUpcoming {
+		sort.Slice(upcomingTasks, func(i, j int) bool {
+			leftDue := upcomingTasks[i].DueDate.Format("2006-01-02")
+			rightDue := upcomingTasks[j].DueDate.Format("2006-01-02")
+			if leftDue != rightDue {
+				return leftDue < rightDue
+			}
+			return upcomingTasks[i].PriorityOrder() < upcomingTasks[j].PriorityOrder()
+		})
 	}
 
 	data := HomeData{
 		Title:              "My Tasks",
 		Tab:                tab,
 		Projects:           filteredProjects,
+		UpcomingTasks:      upcomingTasks,
+		UpcomingDays:       upcomingDays,
 		CompletedStartDate: completedStart.Format("2006-01-02"),
 		CompletedEndDate:   completedEnd.Format("2006-01-02"),
 	}

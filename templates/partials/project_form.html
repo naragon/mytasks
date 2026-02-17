@@ -2,14 +2,14 @@
 <form class="form project-form"
       {{if .ID}}
       hx-put="/api/projects/{{.ID}}"
-      hx-target="#project-{{.ID}}"
-      hx-swap="outerHTML"
+      hx-target="this"
+      hx-swap="none"
       {{else}}
       hx-post="/api/projects"
       hx-target="#projects-list"
       hx-swap="beforeend"
       {{end}}
-      hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();">
+      hx-on::after-request="if(event.detail.successful){ this.closest('.form-container').classList.add('hidden'); this.reset(); }">
     <div class="form-group">
         <label for="project-name">Name *</label>
         <input type="text"

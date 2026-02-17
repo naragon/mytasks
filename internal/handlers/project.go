@@ -103,6 +103,9 @@ func (h *Handlers) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	project.Description = r.FormValue("description")
 	project.Type = r.FormValue("type")
 	project.TargetDate = parseDate(r.FormValue("target_date"))
+	if project.Type == "category" {
+		project.TargetDate = nil
+	}
 
 	if err := project.Validate(); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
@@ -114,11 +117,8 @@ func (h *Handlers) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load tasks for the response
-	tasks, _ := h.store.ListTasksByProject(ctx, id, 3)
-	project.Tasks = tasks
-
-	h.renderPartial(w, "project_card.html", project)
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
 }
 
 // DeleteProject deletes a project.
