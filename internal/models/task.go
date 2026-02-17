@@ -16,6 +16,7 @@ type Task struct {
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	Completed   bool       `json:"completed"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Overdue     bool       `json:"-"`
 	SortOrder   int        `json:"sort_order"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

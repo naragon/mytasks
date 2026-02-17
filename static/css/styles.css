@@ -397,6 +397,11 @@ a:hover {
     border-left-color: var(--color-low);
 }
 
+.upcoming-task.overdue {
+    border-left-color: var(--color-danger);
+    background: #fff7f7;
+}
+
 .upcoming-main {
     display: flex;
     align-items: center;
@@ -405,6 +410,15 @@ a:hover {
 
 .upcoming-text {
     font-weight: 500;
+}
+
+.overdue-flag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-danger);
+    background: #fee2e2;
+    border-radius: 9999px;
+    padding: 0.15rem 0.5rem;
 }
 
 .upcoming-meta {

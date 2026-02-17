@@ -85,8 +85,9 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	upcomingStart := now
+	today := now.Format("2006-01-02")
 	upcomingEnd := now.AddDate(0, 0, upcomingDays)
+	upcomingEndDate := upcomingEnd.Format("2006-01-02")
 
 	// Load projects/tasks based on selected tab.
 	filteredProjects := make([]models.Project, 0, len(projects))
@@ -122,9 +123,10 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				due := task.DueDate.Format("2006-01-02")
-				if due < upcomingStart.Format("2006-01-02") || due > upcomingEnd.Format("2006-01-02") {
+				if due > upcomingEndDate {
 					continue
 				}
+				task.Overdue = due < today
 				task.ProjectName = projects[i].Name
 				upcomingTasks = append(upcomingTasks, task)
 			}
@@ -138,6 +140,9 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 
 	if showUpcoming {
 		sort.Slice(upcomingTasks, func(i, j int) bool {
+			if upcomingTasks[i].Overdue != upcomingTasks[j].Overdue {
+				return upcomingTasks[i].Overdue
+			}
 			leftDue := upcomingTasks[i].DueDate.Format("2006-01-02")
 			rightDue := upcomingTasks[j].DueDate.Format("2006-01-02")
 			if leftDue != rightDue {

@@ -65,13 +65,16 @@
             {{if eq .Tab "upcoming"}}
             <div id="upcoming-list" class="upcoming-list">
                 {{range .UpcomingTasks}}
-                <div class="upcoming-task priority-{{.Priority}}">
+                <div class="upcoming-task priority-{{.Priority}} {{if .Overdue}}overdue{{end}}">
                     <div class="upcoming-main">
                         <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
                         <span class="upcoming-text">{{.Description}}</span>
+                        {{if .Overdue}}
+                        <span class="overdue-flag">Overdue</span>
+                        {{end}}
                     </div>
                     <div class="upcoming-meta">
-                        <span class="due-date">Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{end}}</span>
+                        <span class="due-date {{if .Overdue}}overdue{{end}}">Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{end}}</span>
                         <span class="project-name">Project: {{.ProjectName}}</span>
                     </div>
                 </div>
