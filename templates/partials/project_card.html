@@ -24,6 +24,15 @@
         <div class="task-preview {{if .Completed}}completed{{end}} priority-{{.Priority}}">
             <span class="priority-dot"></span>
             <span class="task-text">{{.Description}}</span>
+            {{if eq $.ViewTab "active"}}
+            <button class="btn btn-icon"
+                    hx-post="/api/tasks/{{.ID}}/toggle"
+                    hx-swap="none"
+                    hx-on::after-request="if(event.detail.successful) window.location.reload()"
+                    title="Mark complete">
+                &#10003;
+            </button>
+            {{end}}
             {{if eq $.ViewTab "completed"}}
             <span class="due-date">
                 Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{else}}None{{end}}

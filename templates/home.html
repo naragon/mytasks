@@ -67,6 +67,13 @@
                 {{range .UpcomingTasks}}
                 <div class="upcoming-task priority-{{.Priority}} {{if .Overdue}}overdue{{end}}">
                     <div class="upcoming-main">
+                        <button class="btn btn-icon"
+                                hx-post="/api/tasks/{{.ID}}/toggle"
+                                hx-swap="none"
+                                hx-on::after-request="if(event.detail.successful) window.location.reload()"
+                                title="Mark complete">
+                            &#10003;
+                        </button>
                         <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
                         <span class="upcoming-text">{{.Description}}</span>
                         {{if .Overdue}}
