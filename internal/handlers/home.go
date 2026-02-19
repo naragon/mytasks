@@ -115,6 +115,9 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 		}
 
 		projects[i].ViewTab = tab
+		for j := range tasks {
+			tasks[j].InlineEdit = true
+		}
 		projects[i].Tasks = tasks
 
 		if showUpcoming {
@@ -128,6 +131,7 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 				}
 				task.Overdue = due < today
 				task.ProjectName = projects[i].Name
+				task.InlineEdit = true
 				upcomingTasks = append(upcomingTasks, task)
 			}
 			continue

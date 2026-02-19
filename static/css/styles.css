@@ -350,6 +350,18 @@ a:hover {
     text-overflow: ellipsis;
 }
 
+.task-text.editable,
+.upcoming-text.editable,
+.task-description.editable {
+    cursor: pointer;
+}
+
+.task-text.editable:hover,
+.upcoming-text.editable:hover,
+.task-description.editable:hover {
+    text-decoration: underline;
+}
+
 .project-card-footer {
     text-align: right;
 }
@@ -431,6 +443,18 @@ a:hover {
 .project-name {
     font-size: 0.75rem;
     color: var(--color-text-muted);
+}
+
+.inline-edit-form {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
+    padding: 0.75rem;
+}
+
+.task-item .inline-edit-form {
+    flex: 1 1 100%;
+    width: 100%;
+    margin-top: 0.75rem;
 }
 
 .no-tasks {
@@ -527,6 +551,7 @@ a:hover {
 .task-item {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.75rem;
     padding: 0.75rem;
     background: var(--color-bg);

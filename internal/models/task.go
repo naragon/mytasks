@@ -17,6 +17,7 @@ type Task struct {
 	Completed   bool       `json:"completed"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 	Overdue     bool       `json:"-"`
+	InlineEdit  bool       `json:"-"`
 	SortOrder   int        `json:"sort_order"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

@@ -2,18 +2,27 @@
 <form class="form task-form"
       {{if .ID}}
       hx-put="/api/tasks/{{.ID}}"
+      {{if .InlineEdit}}
+      hx-target="this"
+      hx-swap="none"
+      {{else}}
       hx-target="#task-{{.ID}}"
       hx-swap="outerHTML"
+      {{end}}
       {{else}}
       hx-post="/api/projects/{{.ProjectID}}/tasks"
       hx-target="#tasks-list"
       hx-swap="beforeend"
       {{end}}
-      hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();">
+      {{if .InlineEdit}}
+      hx-on::after-request="if(event.detail.successful){window.location.reload()}"
+      {{else}}
+      hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();"
+      {{end}}>
     <div class="form-group">
-        <label for="task-description">Description *</label>
+        <label for="task-description{{if .ID}}-{{.ID}}{{end}}">Description *</label>
         <input type="text"
-               id="task-description"
+               id="task-description{{if .ID}}-{{.ID}}{{end}}"
                name="description"
                value="{{.Description}}"
                required
@@ -21,33 +30,37 @@
     </div>
     <div class="form-row">
         <div class="form-group">
-            <label for="task-priority">Priority *</label>
-            <select id="task-priority" name="priority" required>
+            <label for="task-priority{{if .ID}}-{{.ID}}{{end}}">Priority *</label>
+            <select id="task-priority{{if .ID}}-{{.ID}}{{end}}" name="priority" required>
                 <option value="high" {{if eq .Priority "high"}}selected{{end}}>High</option>
                 <option value="medium" {{if or (eq .Priority "medium") (eq .Priority "")}}selected{{end}}>Medium</option>
                 <option value="low" {{if eq .Priority "low"}}selected{{end}}>Low</option>
             </select>
         </div>
         <div class="form-group">
-            <label for="task-due-date">Due Date</label>
+            <label for="task-due-date{{if .ID}}-{{.ID}}{{end}}">Due Date</label>
             <input type="date"
-                   id="task-due-date"
+                   id="task-due-date{{if .ID}}-{{.ID}}{{end}}"
                    name="due_date"
                    {{if .DueDate}}value="{{.DueDate.Format "2006-01-02"}}"{{end}}>
         </div>
     </div>
-    {{if .ID}}
+    {{if and .ID (not .InlineEdit)}}
     <div class="form-group form-checkbox">
         <input type="checkbox"
-               id="task-completed"
+               id="task-completed{{if .ID}}-{{.ID}}{{end}}"
                name="completed"
                value="true"
                {{if .Completed}}checked{{end}}>
-        <label for="task-completed">Completed</label>
+        <label for="task-completed{{if .ID}}-{{.ID}}{{end}}">Completed</label>
     </div>
     {{end}}
     <div class="form-actions">
+        {{if .InlineEdit}}
+        <button type="button" class="btn btn-secondary" onclick="toggleInlineTaskEdit({{.ID}})">Cancel</button>
+        {{else}}
         <button type="button" class="btn btn-secondary" onclick="hideForm(this)">Cancel</button>
+        {{end}}
         <button type="submit" class="btn btn-primary">{{if .ID}}Update{{else}}Add{{end}} Task</button>
     </div>
 </form>

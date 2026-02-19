@@ -117,6 +117,32 @@ function showEditTaskForm(taskId, projectId) {
     }
 }
 
+function toggleInlineTaskEdit(taskId) {
+    const formContainer = document.getElementById(`inline-task-edit-${taskId}`);
+    if (!formContainer) {
+        return;
+    }
+
+    const shouldOpen = formContainer.classList.contains('hidden');
+
+    document.querySelectorAll('.inline-edit-form').forEach(function(form) {
+        if (form !== formContainer) {
+            form.classList.add('hidden');
+        }
+    });
+
+    if (shouldOpen) {
+        formContainer.classList.remove('hidden');
+        const input = formContainer.querySelector('input[name="description"]');
+        if (input) {
+            input.focus();
+            input.select();
+        }
+    } else {
+        formContainer.classList.add('hidden');
+    }
+}
+
 function hideForm(button) {
     const formContainer = button.closest('.form-container');
     if (formContainer) {

@@ -23,7 +23,8 @@
         {{range .Tasks}}
         <div class="task-preview {{if .Completed}}completed{{end}} priority-{{.Priority}}">
             <span class="priority-dot"></span>
-            <span class="task-text">{{.Description}}</span>
+            <span class="task-text {{if eq $.ViewTab "active"}}editable{{end}}"
+                  {{if eq $.ViewTab "active"}}onclick="toggleInlineTaskEdit({{.ID}})" title="Edit task"{{end}}>{{.Description}}</span>
             {{if eq $.ViewTab "active"}}
             <button class="btn btn-icon"
                     hx-post="/api/tasks/{{.ID}}/toggle"
@@ -44,6 +45,11 @@
             <span class="due-date {{if .IsOverdue}}overdue{{end}}">{{.DueDate.Format "Jan 2"}}</span>
             {{end}}
         </div>
+        {{if eq $.ViewTab "active"}}
+        <div id="inline-task-edit-{{.ID}}" class="form-container hidden inline-edit-form">
+            {{template "task_form.html" .}}
+        </div>
+        {{end}}
         {{else}}
         <p class="no-tasks">No tasks</p>
         {{end}}

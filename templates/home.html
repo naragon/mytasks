@@ -75,7 +75,7 @@
                             &#10003;
                         </button>
                         <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
-                        <span class="upcoming-text">{{.Description}}</span>
+                        <span class="upcoming-text editable" onclick="toggleInlineTaskEdit({{.ID}})" title="Edit task">{{.Description}}</span>
                         {{if .Overdue}}
                         <span class="overdue-flag">Overdue</span>
                         {{end}}
@@ -83,6 +83,9 @@
                     <div class="upcoming-meta">
                         <span class="due-date {{if .Overdue}}overdue{{end}}">Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{end}}</span>
                         <span class="project-name">Project: {{.ProjectName}}</span>
+                    </div>
+                    <div id="inline-task-edit-{{.ID}}" class="form-container hidden inline-edit-form">
+                        {{template "task_form.html" .}}
                     </div>
                 </div>
                 {{else}}

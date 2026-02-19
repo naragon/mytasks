@@ -35,6 +35,9 @@ func (h *Handlers) ProjectDetail(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	for i := range tasks {
+		tasks[i].InlineEdit = true
+	}
 	project.Tasks = tasks
 
 	data := ProjectDetailData{

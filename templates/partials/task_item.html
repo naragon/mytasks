@@ -11,7 +11,7 @@
         <label for="checkbox-{{.ID}}"></label>
     </div>
     <div class="task-content">
-        <span class="task-description">{{.Description}}</span>
+        <span class="task-description editable" onclick="toggleInlineTaskEdit({{.ID}})" title="Edit task">{{.Description}}</span>
         <div class="task-meta">
             <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
             {{if .DueDate}}
@@ -22,9 +22,6 @@
         </div>
     </div>
     <div class="task-actions">
-        <button class="btn btn-icon" onclick="showEditTaskForm({{.ID}}, {{.ProjectID}})" title="Edit">
-            &#9998;
-        </button>
         <button class="btn btn-icon btn-danger"
                 hx-delete="/api/tasks/{{.ID}}"
                 hx-target="#task-{{.ID}}"
@@ -35,7 +32,7 @@
         </button>
     </div>
 
-    <div class="form-container hidden inline-task-form" id="edit-task-form-{{.ID}}">
+    <div class="form-container hidden inline-edit-form" id="inline-task-edit-{{.ID}}">
         {{template "task_form.html" .}}
     </div>
 </div>
