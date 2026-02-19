@@ -315,9 +315,9 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 	}
 
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO tasks (project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, task.ProjectID, task.Description, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, now, now)
+		INSERT INTO tasks (project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, task.ProjectID, task.Description, task.Notes, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
 	}
@@ -338,12 +338,13 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 	var completedAt sql.NullString
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE id = ?
 	`, id).Scan(
 		&task.ID,
 		&task.ProjectID,
 		&task.Description,
+		&task.Notes,
 		&task.Priority,
 		&dueDate,
 		&task.Completed,
@@ -382,7 +383,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 // If limit is 0, all tasks are returned.
 func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? ORDER BY sort_order ASC
 	`
 	if limit > 0 {
@@ -405,6 +406,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 			&task.ID,
 			&task.ProjectID,
 			&task.Description,
+			&task.Notes,
 			&task.Priority,
 			&dueDate,
 			&task.Completed,
@@ -443,7 +445,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 // If limit is 0, all matching tasks are returned.
 func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID int64, completed bool, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? AND completed = ? ORDER BY sort_order ASC
 	`
 	if limit > 0 {
@@ -466,6 +468,7 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 			&task.ID,
 			&task.ProjectID,
 			&task.Description,
+			&task.Notes,
 			&task.Priority,
 			&dueDate,
 			&task.Completed,
@@ -504,7 +507,7 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 // When from/to are nil they are not applied as filters. If limit is 0, all matching tasks are returned.
 func (s *SQLiteStore) ListTasksByProjectCompletedBetween(ctx context.Context, projectID int64, from, to *time.Time, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? AND completed = TRUE AND completed_at IS NOT NULL
 	`
 	args := []interface{}{projectID}
@@ -541,6 +544,7 @@ func (s *SQLiteStore) ListTasksByProjectCompletedBetween(ctx context.Context, pr
 			&task.ID,
 			&task.ProjectID,
 			&task.Description,
+			&task.Notes,
 			&task.Priority,
 			&dueDate,
 			&task.Completed,
@@ -612,9 +616,9 @@ func (s *SQLiteStore) UpdateTask(ctx context.Context, task *models.Task) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE tasks
-		SET description = ?, priority = ?, due_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
+		SET description = ?, notes = ?, priority = ?, due_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
 		WHERE id = ?
-	`, task.Description, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, task.UpdatedAt, task.ID)
+	`, task.Description, task.Notes, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, task.UpdatedAt, task.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
 	}

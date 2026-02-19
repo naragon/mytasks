@@ -84,6 +84,9 @@
                         <span class="due-date {{if .Overdue}}overdue{{end}}">Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{end}}</span>
                         <span class="project-name">Project: {{.ProjectName}}</span>
                     </div>
+                    {{if .Notes}}
+                    <div class="task-notes">{{.Notes}}</div>
+                    {{end}}
                     <div id="inline-task-edit-{{.ID}}" class="form-container hidden inline-edit-form">
                         {{template "task_form.html" .}}
                     </div>

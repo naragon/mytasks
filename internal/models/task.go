@@ -12,6 +12,7 @@ type Task struct {
 	ProjectID   int64      `json:"project_id"`
 	ProjectName string     `json:"-"`
 	Description string     `json:"description"`
+	Notes       string     `json:"notes,omitempty"`
 	Priority    string     `json:"priority"` // "high", "medium", "low"
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	Completed   bool       `json:"completed"`
@@ -35,6 +36,10 @@ func (t *Task) Validate() error {
 
 	if t.Priority != "high" && t.Priority != "medium" && t.Priority != "low" {
 		return errors.New("priority must be 'high', 'medium', or 'low'")
+	}
+
+	if len(t.Notes) > 255 {
+		return errors.New("notes must be 255 characters or fewer")
 	}
 
 	return nil

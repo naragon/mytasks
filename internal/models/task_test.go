@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,6 +107,25 @@ func TestTaskValidation_PriorityValues(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestTaskValidation_NotesLength(t *testing.T) {
+	validNotes := strings.Repeat("a", 255)
+	invalidNotes := strings.Repeat("a", 256)
+
+	valid := Task{Description: "Task", ProjectID: 1, Priority: "medium", Notes: validNotes}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("expected 255-char notes to be valid, got error: %v", err)
+	}
+
+	invalid := Task{Description: "Task", ProjectID: 1, Priority: "medium", Notes: invalidNotes}
+	err := invalid.Validate()
+	if err == nil {
+		t.Fatal("expected validation error for notes longer than 255")
+	}
+	if err.Error() != "notes must be 255 characters or fewer" {
+		t.Fatalf("unexpected error message: %v", err)
 	}
 }
 

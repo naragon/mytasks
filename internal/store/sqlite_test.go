@@ -214,6 +214,7 @@ func TestCreateTask(t *testing.T) {
 	task := &models.Task{
 		ProjectID:   project.ID,
 		Description: "Test task",
+		Notes:       "Initial notes",
 		Priority:    "high",
 	}
 
@@ -227,6 +228,9 @@ func TestCreateTask(t *testing.T) {
 	}
 	if task.CreatedAt.IsZero() {
 		t.Error("expected created_at to be set")
+	}
+	if task.Notes != "Initial notes" {
+		t.Errorf("expected notes %q, got %q", "Initial notes", task.Notes)
 	}
 }
 
@@ -256,6 +260,9 @@ func TestGetTask(t *testing.T) {
 	}
 	if got.Priority != task.Priority {
 		t.Errorf("expected priority %q, got %q", task.Priority, got.Priority)
+	}
+	if got.Notes != task.Notes {
+		t.Errorf("expected notes %q, got %q", task.Notes, got.Notes)
 	}
 	if got.DueDate == nil {
 		t.Error("expected due date to be set")
@@ -328,11 +335,13 @@ func TestUpdateTask(t *testing.T) {
 	task := &models.Task{
 		ProjectID:   project.ID,
 		Description: "Original",
+		Notes:       "Before",
 		Priority:    "low",
 	}
 	store.CreateTask(ctx, task)
 
 	task.Description = "Updated"
+	task.Notes = "After"
 	task.Priority = "high"
 	err := store.UpdateTask(ctx, task)
 	if err != nil {
@@ -345,6 +354,9 @@ func TestUpdateTask(t *testing.T) {
 	}
 	if got.Priority != "high" {
 		t.Errorf("expected priority %q, got %q", "high", got.Priority)
+	}
+	if got.Notes != "After" {
+		t.Errorf("expected notes %q, got %q", "After", got.Notes)
 	}
 }
 

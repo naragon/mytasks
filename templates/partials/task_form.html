@@ -28,6 +28,14 @@
                required
                placeholder="What needs to be done?">
     </div>
+    <div class="form-group">
+        <label for="task-notes{{if .ID}}-{{.ID}}{{end}}">Notes</label>
+        <textarea id="task-notes{{if .ID}}-{{.ID}}{{end}}"
+                  name="notes"
+                  maxlength="255"
+                  rows="3"
+                  placeholder="Optional notes (max 255 characters)">{{.Notes}}</textarea>
+    </div>
     <div class="form-row">
         <div class="form-group">
             <label for="task-priority{{if .ID}}-{{.ID}}{{end}}">Priority *</label>

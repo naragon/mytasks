@@ -20,6 +20,9 @@
             </span>
             {{end}}
         </div>
+        {{if .Notes}}
+        <div class="task-notes">{{.Notes}}</div>
+        {{end}}
     </div>
     <div class="task-actions">
         <button class="btn btn-icon btn-danger"

@@ -213,6 +213,14 @@ func bootstrapLegacyMigrations(db *sql.DB, migrations []migration) error {
 		baselineVersion = 3
 	}
 
+	hasTaskNotes, err := columnExists(db, "tasks", "notes")
+	if err != nil {
+		return err
+	}
+	if hasTaskNotes {
+		baselineVersion = 4
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin legacy migration bootstrap transaction: %w", err)

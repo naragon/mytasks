@@ -25,6 +25,7 @@ func (h *Handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 	task := &models.Task{
 		ProjectID:   projectID,
 		Description: r.FormValue("description"),
+		Notes:       r.FormValue("notes"),
 		Priority:    r.FormValue("priority"),
 		DueDate:     parseDate(r.FormValue("due_date")),
 	}
@@ -68,6 +69,7 @@ func (h *Handlers) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task.Description = r.FormValue("description")
+	task.Notes = r.FormValue("notes")
 	task.Priority = r.FormValue("priority")
 	task.DueDate = parseDate(r.FormValue("due_date"))
 
