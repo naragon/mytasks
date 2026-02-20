@@ -28,6 +28,7 @@
                 <a href="/?tab=active" class="tab {{if eq .Tab "active"}}active{{end}}">Active</a>
                 <a href="/?tab=completed" class="tab {{if eq .Tab "completed"}}active{{end}}">Completed</a>
                 <a href="/?tab=upcoming" class="tab {{if eq .Tab "upcoming"}}active{{end}}">Upcoming</a>
+                <a href="/?tab=someday" class="tab {{if eq .Tab "someday"}}active{{end}}">Someday</a>
             </div>
 
             {{if eq .Tab "completed"}}
@@ -93,6 +94,36 @@
                 </div>
                 {{else}}
                 <p class="empty-state">No upcoming tasks in the next {{.UpcomingDays}} days.</p>
+                {{end}}
+            </div>
+            {{else if eq .Tab "someday"}}
+            <div id="someday-list" class="upcoming-list">
+                {{range .SomedayTasks}}
+                <div class="upcoming-task priority-{{.Priority}}">
+                    <div class="upcoming-main">
+                        <button class="btn btn-icon"
+                                hx-post="/api/tasks/{{.ID}}/toggle"
+                                hx-swap="none"
+                                hx-on::after-request="if(event.detail.successful) window.location.reload()"
+                                title="Mark complete">
+                            &#10003;
+                        </button>
+                        <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                        <span class="upcoming-text editable" onclick="toggleInlineTaskEdit({{.ID}})" title="Edit task">{{.Description}}</span>
+                    </div>
+                    <div class="upcoming-meta">
+                        <span class="due-date">Due: None</span>
+                        <span class="project-name">Project: {{.ProjectName}}</span>
+                    </div>
+                    {{if .Notes}}
+                    <div class="task-notes">{{.Notes}}</div>
+                    {{end}}
+                    <div id="inline-task-edit-{{.ID}}" class="form-container hidden inline-edit-form">
+                        {{template "task_form.html" .}}
+                    </div>
+                </div>
+                {{else}}
+                <p class="empty-state">No someday tasks yet.</p>
                 {{end}}
             </div>
             {{else}}
