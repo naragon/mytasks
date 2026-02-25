@@ -75,6 +75,7 @@ func main() {
 
 	// Task API routes
 	r.Post("/api/projects/{id}/tasks", h.CreateTask)
+	r.Post("/api/tasks", h.CreateTask)
 	r.Put("/api/tasks/{id}", h.UpdateTask)
 	r.Delete("/api/tasks/{id}", h.DeleteTask)
 	r.Post("/api/tasks/{id}/toggle", h.ToggleTask)

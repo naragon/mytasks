@@ -14,6 +14,7 @@ type HomeData struct {
 	Title              string
 	Tab                string // "active", "completed", "upcoming", or "someday"
 	Projects           []models.Project
+	ActiveProjects     []models.Project
 	UpcomingTasks      []models.Task
 	SomedayTasks       []models.Task
 	UpcomingDays       int
@@ -93,12 +94,15 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 
 	// Load projects/tasks based on selected tab.
 	filteredProjects := make([]models.Project, 0, len(projects))
+	activeProjects := make([]models.Project, 0, len(projects))
 	upcomingTasks := make([]models.Task, 0)
 	somedayTasks := make([]models.Task, 0)
 	for i := range projects {
 		if projects[i].Completed {
 			continue
 		}
+
+		activeProjects = append(activeProjects, projects[i])
 
 		var (
 			tasks []models.Task
@@ -186,6 +190,7 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 		Title:              "My Tasks",
 		Tab:                tab,
 		Projects:           filteredProjects,
+		ActiveProjects:     activeProjects,
 		UpcomingTasks:      upcomingTasks,
 		SomedayTasks:       somedayTasks,
 		UpcomingDays:       upcomingDays,

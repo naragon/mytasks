@@ -10,11 +10,18 @@
       hx-swap="outerHTML"
       {{end}}
       {{else}}
+      {{if .SelectProject}}
+      hx-post="/api/tasks"
+      hx-swap="none"
+      {{else}}
       hx-post="/api/projects/{{.ProjectID}}/tasks"
       hx-target="#tasks-list"
       hx-swap="beforeend"
       {{end}}
+      {{end}}
       {{if .InlineEdit}}
+      hx-on::after-request="if(event.detail.successful){window.location.reload()}"
+      {{else if .ReloadOnSuccess}}
       hx-on::after-request="if(event.detail.successful){window.location.reload()}"
       {{else}}
       hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();"
@@ -36,6 +43,16 @@
                   rows="3"
                   placeholder="Optional notes (max 255 characters)">{{.Notes}}</textarea>
     </div>
+    {{if and (not .ID) .SelectProject}}
+    <div class="form-group">
+        <label for="task-project">Project / Category *</label>
+        <select id="task-project" name="project_id" required>
+            {{range .Projects}}
+            <option value="{{.ID}}" {{if eq $.ProjectID .ID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+    </div>
+    {{end}}
     <div class="form-row">
         <div class="form-group">
             <label for="task-priority{{if .ID}}-{{.ID}}{{end}}">Priority *</label>

@@ -375,6 +375,29 @@ func TestCreateTaskHandler_Success(t *testing.T) {
 	}
 }
 
+func TestCreateTaskHandler_SuccessWithProjectFromForm(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Test", Type: "project"}
+	s.CreateProject(ctx, project)
+
+	form := url.Values{}
+	form.Set("project_id", "1")
+	form.Set("description", "New Task")
+	form.Set("priority", "high")
+
+	req := httptest.NewRequest("POST", "/api/tasks", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	h.CreateTask(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+}
+
 func TestUpdateTaskHandler_Success(t *testing.T) {
 	h, s := setupTestHandlers(t)
 	ctx := context.Background()

@@ -57,6 +57,19 @@
                 <a href="/?tab=upcoming&days=14" class="btn btn-secondary {{if eq .UpcomingDays 14}}active{{end}}">14 Days</a>
                 <a href="/?tab=upcoming&days=30" class="btn btn-secondary {{if or (eq .UpcomingDays 30) (eq .UpcomingDays 0)}}active{{end}}">30 Days</a>
             </div>
+            <div class="section-header">
+                <h3>Upcoming Tasks</h3>
+                {{if .ActiveProjects}}
+                <button class="btn btn-primary btn-sm" onclick="showUpcomingTaskForm()">
+                    + Add Task
+                </button>
+                {{end}}
+            </div>
+            {{if .ActiveProjects}}
+            <div id="new-upcoming-task-form" class="form-container hidden">
+                {{template "task_form.html" (dict "SelectProject" true "Projects" .ActiveProjects "ReloadOnSuccess" true "ProjectID" (index .ActiveProjects 0).ID)}}
+            </div>
+            {{end}}
             {{end}}
 
             <div id="new-project-form" class="form-container hidden">

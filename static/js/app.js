@@ -83,6 +83,14 @@ function showTaskForm(projectId) {
     }
 }
 
+function showUpcomingTaskForm() {
+    const form = document.getElementById('new-upcoming-task-form');
+    if (form) {
+        form.classList.remove('hidden');
+        form.querySelector('input[name="description"]').focus();
+    }
+}
+
 function showEditTaskForm(taskId, projectId) {
     const taskElement = document.getElementById(`task-${taskId}`);
     if (!taskElement) {

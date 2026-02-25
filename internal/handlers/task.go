@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"mytasks/internal/models"
 )
@@ -11,15 +12,18 @@ import (
 func (h *Handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	projectID, err := parseID(r, "id")
-	if err != nil {
-		respondError(w, http.StatusBadRequest, "invalid project id")
-		return
-	}
-
 	if err := r.ParseForm(); err != nil {
 		respondError(w, http.StatusBadRequest, "invalid form data")
 		return
+	}
+
+	projectID, err := parseID(r, "id")
+	if err != nil {
+		projectID, err = strconv.ParseInt(r.FormValue("project_id"), 10, 64)
+		if err != nil || projectID <= 0 {
+			respondError(w, http.StatusBadRequest, "invalid project id")
+			return
+		}
 	}
 
 	task := &models.Task{
