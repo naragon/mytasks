@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,6 +27,47 @@ func setupTestHandlers(t *testing.T) (*Handlers, *store.SQLiteStore) {
 	t.Cleanup(func() { s.Close() })
 
 	h := New(s, nil) // nil templates for API tests
+	return h, s
+}
+
+func setupTestHandlersWithTemplates(t *testing.T) (*Handlers, *store.SQLiteStore) {
+	t.Helper()
+	h, s := setupTestHandlers(t)
+
+	funcMap := template.FuncMap{
+		"dict": func(values ...interface{}) map[string]interface{} {
+			if len(values)%2 != 0 {
+				return nil
+			}
+			dict := make(map[string]interface{}, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					continue
+				}
+				dict[key] = values[i+1]
+			}
+			return dict
+		},
+	}
+
+	tmpl := template.New("").Funcs(funcMap)
+	files, err := filepath.Glob("../../templates/*.html")
+	if err != nil {
+		t.Fatalf("failed to glob page templates: %v", err)
+	}
+	partialFiles, err := filepath.Glob("../../templates/partials/*.html")
+	if err != nil {
+		t.Fatalf("failed to glob partial templates: %v", err)
+	}
+	files = append(files, partialFiles...)
+
+	tmpl, err = tmpl.ParseFiles(files...)
+	if err != nil {
+		t.Fatalf("failed to parse templates: %v", err)
+	}
+
+	h.templates = tmpl
 	return h, s
 }
 
@@ -47,11 +90,11 @@ func TestHomeHandler_ListsProjects(t *testing.T) {
 }
 
 func TestHomeHandler_HidesCompletedProjects(t *testing.T) {
-	h, s := setupTestHandlers(t)
+	h, s := setupTestHandlersWithTemplates(t)
 	ctx := context.Background()
 
 	active := &models.Project{Name: "Active", Type: "project", SortOrder: 1}
-	completed := &models.Project{Name: "Completed", Type: "project", SortOrder: 2}
+	completed := &models.Project{Name: "Done Project", Type: "project", SortOrder: 2}
 	s.CreateProject(ctx, active)
 	s.CreateProject(ctx, completed)
 	s.MarkProjectComplete(ctx, completed.ID)
@@ -66,7 +109,7 @@ func TestHomeHandler_HidesCompletedProjects(t *testing.T) {
 	}
 
 	body := rec.Body.String()
-	if strings.Contains(body, "Completed") {
+	if strings.Contains(body, "Done Project") {
 		t.Fatalf("expected completed project to be hidden, response body: %s", body)
 	}
 }
@@ -512,5 +555,71 @@ func TestReorderTasksHandler_Success(t *testing.T) {
 	tasks, _ := s.ListTasksByProject(ctx, project.ID, 0)
 	if tasks[0].Description != "B" {
 		t.Errorf("expected first task to be B, got %s", tasks[0].Description)
+	}
+}
+
+func TestReorderProjectsHandler_InvalidJSON(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	req := httptest.NewRequest("POST", "/api/projects/reorder", strings.NewReader("{"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	h.ReorderProjects(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestUpdateTaskHandler_NotFound(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	form := url.Values{}
+	form.Set("description", "Updated")
+	form.Set("priority", "high")
+
+	req := httptest.NewRequest("PUT", "/api/tasks/999", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "999")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdateTask(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+	}
+}
+
+func TestDeleteProjectHandler_NotFound(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	req := httptest.NewRequest("DELETE", "/api/projects/999", nil)
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "999")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.DeleteProject(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d for idempotent delete, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestHomeHandler_CompletedTabInvalidDateRange(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	req := httptest.NewRequest("GET", "/?tab=completed&start_date=2026-02-10&end_date=2026-02-01", nil)
+	rec := httptest.NewRecorder()
+
+	h.Home(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }

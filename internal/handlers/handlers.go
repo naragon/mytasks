@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"encoding/json"
 	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -50,33 +50,28 @@ func respondError(w http.ResponseWriter, code int, message string) {
 	w.Write([]byte(message))
 }
 
-// respondJSON sends a JSON response.
-func respondJSON(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+func respondServerError(w http.ResponseWriter, err error) {
+	log.Printf("internal server error: %v", err)
+	respondError(w, http.StatusInternalServerError, "internal server error")
 }
 
-// renderTemplate renders a template with the given data.
-func (h *Handlers) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
+func (h *Handlers) render(w http.ResponseWriter, name string, data interface{}) {
 	if h.templates == nil {
 		// For testing without templates
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	err := h.templates.ExecuteTemplate(w, name, data)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+	if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
+		respondServerError(w, err)
 	}
+}
+
+// renderTemplate renders a template with the given data.
+func (h *Handlers) renderTemplate(w http.ResponseWriter, name string, data interface{}) {
+	h.render(w, name, data)
 }
 
 // renderPartial renders a partial template (for htmx responses).
 func (h *Handlers) renderPartial(w http.ResponseWriter, name string, data interface{}) {
-	if h.templates == nil {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	err := h.templates.ExecuteTemplate(w, name, data)
-	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
-	}
+	h.render(w, name, data)
 }

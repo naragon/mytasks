@@ -32,7 +32,7 @@ func (h *Handlers) ProjectDetail(w http.ResponseWriter, r *http.Request) {
 	// Load active tasks only (no limit)
 	tasks, err := h.store.ListTasksByProjectFiltered(ctx, id, false, 0)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 	for i := range tasks {
@@ -69,12 +69,8 @@ func (h *Handlers) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set sort order to be at the end
-	projects, _ := h.store.ListProjects(ctx)
-	project.SortOrder = len(projects) + 1
-
 	if err := h.store.CreateProject(ctx, project); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -116,7 +112,7 @@ func (h *Handlers) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.UpdateProject(ctx, project); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -135,7 +131,7 @@ func (h *Handlers) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.DeleteProject(ctx, id); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -153,7 +149,7 @@ func (h *Handlers) CompleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.MarkProjectComplete(ctx, id); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -172,7 +168,7 @@ func (h *Handlers) ReopenProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.MarkProjectIncomplete(ctx, id); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -194,7 +190,7 @@ func (h *Handlers) ReorderProjects(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.ReorderProjects(ctx, payload.IDs); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 

@@ -7,8 +7,10 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -56,6 +58,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
+	r.Use(csrfOriginCheck)
 
 	// Static files
 	staticSub, _ := fs.Sub(staticFS, "static")
@@ -66,6 +69,8 @@ func main() {
 	r.Get("/projects/{id}", h.ProjectDetail)
 
 	// Project API routes
+	r.Get("/api/projects/form", h.GetProjectForm)
+	r.Get("/api/projects/{id}/form", h.GetProjectForm)
 	r.Post("/api/projects", h.CreateProject)
 	r.Put("/api/projects/{id}", h.UpdateProject)
 	r.Post("/api/projects/{id}/complete", h.CompleteProject)
@@ -74,6 +79,8 @@ func main() {
 	r.Post("/api/projects/reorder", h.ReorderProjects)
 
 	// Task API routes
+	r.Get("/api/projects/{project_id}/tasks/form", h.GetTaskForm)
+	r.Get("/api/tasks/{id}/form", h.GetTaskForm)
 	r.Post("/api/projects/{id}/tasks", h.CreateTask)
 	r.Post("/api/tasks", h.CreateTask)
 	r.Put("/api/tasks/{id}", h.UpdateTask)
@@ -144,4 +151,43 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func csrfOriginCheck(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		origin := r.Header.Get("Origin")
+		referer := r.Header.Get("Referer")
+		if origin == "" && referer == "" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		if origin != "" {
+			u, err := url.Parse(origin)
+			if err != nil || !sameHost(u.Host, r.Host) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+
+		if referer != "" {
+			u, err := url.Parse(referer)
+			if err != nil || !sameHost(u.Host, r.Host) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func sameHost(a, b string) bool {
+	return strings.EqualFold(a, b)
 }

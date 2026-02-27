@@ -39,12 +39,8 @@ func (h *Handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set sort order to be at the end
-	tasks, _ := h.store.ListTasksByProject(ctx, projectID, 0)
-	task.SortOrder = len(tasks) + 1
-
 	if err := h.store.CreateTask(ctx, task); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -89,7 +85,7 @@ func (h *Handlers) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.UpdateTask(ctx, task); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -107,7 +103,7 @@ func (h *Handlers) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.DeleteTask(ctx, id); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -125,14 +121,14 @@ func (h *Handlers) ToggleTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.ToggleTaskComplete(ctx, id); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
 	// Return the updated task
 	task, err := h.store.GetTask(ctx, id)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -159,7 +155,7 @@ func (h *Handlers) ReorderTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.ReorderTasks(ctx, projectID, payload.IDs); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 

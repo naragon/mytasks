@@ -34,7 +34,7 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 
 	projects, err := h.store.ListProjects(ctx)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		respondServerError(w, err)
 		return
 	}
 
@@ -119,7 +119,7 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 			tasks, err = h.store.ListTasksByProjectFiltered(ctx, projects[i].ID, false, 3)
 		}
 		if err != nil {
-			respondError(w, http.StatusInternalServerError, err.Error())
+			respondServerError(w, err)
 			return
 		}
 

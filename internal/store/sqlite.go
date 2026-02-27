@@ -44,10 +44,13 @@ func parseSQLiteDate(value string) (*time.Time, error) {
 
 // NewSQLiteStore creates a new SQLite store with the given database path.
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+	dsn := dbPath + "?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000"
+	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	store := &SQLiteStore{db: db}
 	if err := store.migrate(); err != nil {
@@ -78,10 +81,17 @@ func (s *SQLiteStore) CreateProject(ctx context.Context, project *models.Project
 		targetDate = project.TargetDate.Format("2006-01-02")
 	}
 
+	sortOrder := project.SortOrder
+	if sortOrder <= 0 {
+		sortOrder = -1
+	}
+
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO projects (name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, project.Name, project.Description, project.Type, targetDate, false, nil, project.SortOrder, now, now)
+		VALUES (?, ?, ?, ?, ?, ?,
+			CASE WHEN ? > 0 THEN ? ELSE COALESCE((SELECT MAX(sort_order) + 1 FROM projects), 1) END,
+			?, ?)
+	`, project.Name, project.Description, project.Type, targetDate, false, nil, sortOrder, sortOrder, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create project: %w", err)
 	}
@@ -91,6 +101,10 @@ func (s *SQLiteStore) CreateProject(ctx context.Context, project *models.Project
 		return fmt.Errorf("failed to get last insert id: %w", err)
 	}
 	project.ID = id
+
+	if err := s.db.QueryRowContext(ctx, `SELECT sort_order FROM projects WHERE id = ?`, id).Scan(&project.SortOrder); err != nil {
+		return fmt.Errorf("failed to load project sort order: %w", err)
+	}
 
 	return nil
 }
@@ -314,10 +328,17 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 		completedAt = task.CompletedAt.Format("2006-01-02")
 	}
 
+	sortOrder := task.SortOrder
+	if sortOrder <= 0 {
+		sortOrder = -1
+	}
+
 	result, err := s.db.ExecContext(ctx, `
 		INSERT INTO tasks (project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, task.ProjectID, task.Description, task.Notes, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, now, now)
+		VALUES (?, ?, ?, ?, ?, ?, ?,
+			CASE WHEN ? > 0 THEN ? ELSE COALESCE((SELECT MAX(sort_order) + 1 FROM tasks WHERE project_id = ?), 1) END,
+			?, ?)
+	`, task.ProjectID, task.Description, task.Notes, task.Priority, dueDate, task.Completed, completedAt, sortOrder, sortOrder, task.ProjectID, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
 	}
@@ -327,6 +348,10 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 		return fmt.Errorf("failed to get last insert id: %w", err)
 	}
 	task.ID = id
+
+	if err := s.db.QueryRowContext(ctx, `SELECT sort_order FROM tasks WHERE id = ?`, id).Scan(&task.SortOrder); err != nil {
+		return fmt.Errorf("failed to load task sort order: %w", err)
+	}
 
 	return nil
 }
@@ -386,11 +411,13 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? ORDER BY sort_order ASC
 	`
+	args := []interface{}{projectID}
 	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+		query += " LIMIT ?"
+		args = append(args, limit)
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, projectID)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks: %w", err)
 	}
@@ -448,11 +475,13 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? AND completed = ? ORDER BY sort_order ASC
 	`
+	args := []interface{}{projectID, completed}
 	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+		query += " LIMIT ?"
+		args = append(args, limit)
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, projectID, completed)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks: %w", err)
 	}
@@ -525,7 +554,8 @@ func (s *SQLiteStore) ListTasksByProjectCompletedBetween(ctx context.Context, pr
 	query += ` ORDER BY completed_at DESC, sort_order ASC`
 
 	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+		query += " LIMIT ?"
+		args = append(args, limit)
 	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
