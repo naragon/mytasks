@@ -1,0 +1,26 @@
+{{define "empty.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Tasks</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+<div class="app-layout">
+    {{template "sidebar.html" .}}
+    <main class="main-content">
+        <div class="empty-state-page">
+            <h2>Welcome to My Tasks</h2>
+            <p>Create your first project to get started.</p>
+            <button class="btn btn-primary" onclick="showProjectForm()">+ New Project</button>
+        </div>
+    </main>
+</div>
+<script src="/static/js/vendor/htmx.min.js"></script>
+<script src="/static/js/vendor/Sortable.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

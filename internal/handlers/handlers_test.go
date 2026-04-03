@@ -71,78 +71,42 @@ func setupTestHandlersWithTemplates(t *testing.T) (*Handlers, *store.SQLiteStore
 	return h, s
 }
 
-func TestHomeHandler_ListsProjects(t *testing.T) {
+func TestHomeHandler_RedirectsToFirstProject(t *testing.T) {
 	h, s := setupTestHandlers(t)
 	ctx := context.Background()
 
-	// Create test projects
 	s.CreateProject(ctx, &models.Project{Name: "Project A", Type: "project", SortOrder: 1})
-	s.CreateProject(ctx, &models.Project{Name: "Project B", Type: "category", SortOrder: 2})
+	s.CreateProject(ctx, &models.Project{Name: "Project B", Type: "project", SortOrder: 2})
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
 
 	h.Home(rec, req)
 
+	if rec.Code != http.StatusFound {
+		t.Errorf("expected status %d, got %d", http.StatusFound, rec.Code)
+	}
+	location := rec.Header().Get("Location")
+	if location != "/projects/1" {
+		t.Errorf("expected redirect to /projects/1, got %s", location)
+	}
+}
+
+func TestHomeHandler_EmptyStateWhenNoProjects(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+
+	h.Home(rec, req)
+
+	// With nil templates, renders as 200
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
-func TestHomeHandler_HidesCompletedProjects(t *testing.T) {
-	h, s := setupTestHandlersWithTemplates(t)
-	ctx := context.Background()
-
-	active := &models.Project{Name: "Active", Type: "project", SortOrder: 1}
-	completed := &models.Project{Name: "Done Project", Type: "project", SortOrder: 2}
-	s.CreateProject(ctx, active)
-	s.CreateProject(ctx, completed)
-	s.MarkProjectComplete(ctx, completed.ID)
-
-	req := httptest.NewRequest("GET", "/", nil)
-	rec := httptest.NewRecorder()
-
-	h.Home(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
-	}
-
-	body := rec.Body.String()
-	if strings.Contains(body, "Done Project") {
-		t.Fatalf("expected completed project to be hidden, response body: %s", body)
-	}
-}
-
-func TestHomeHandler_ShowsTopThreeTasks(t *testing.T) {
-	h, s := setupTestHandlers(t)
-	ctx := context.Background()
-
-	project := &models.Project{Name: "Test", Type: "project"}
-	s.CreateProject(ctx, project)
-
-	// Create 5 tasks
-	for i := 1; i <= 5; i++ {
-		s.CreateTask(ctx, &models.Task{
-			ProjectID:   project.ID,
-			Description: "Task",
-			Priority:    "medium",
-			SortOrder:   i,
-		})
-	}
-
-	req := httptest.NewRequest("GET", "/", nil)
-	rec := httptest.NewRecorder()
-
-	h.Home(rec, req)
-
-	// The handler should only fetch top 3 tasks per project
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
-	}
-}
-
-func TestProjectDetailHandler_ShowsAllTasks(t *testing.T) {
+func TestKanbanBoardHandler_ShowsAllTasks(t *testing.T) {
 	h, s := setupTestHandlers(t)
 	ctx := context.Background()
 
@@ -161,12 +125,11 @@ func TestProjectDetailHandler_ShowsAllTasks(t *testing.T) {
 	req := httptest.NewRequest("GET", "/projects/1", nil)
 	rec := httptest.NewRecorder()
 
-	// Set up chi URL params
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-	h.ProjectDetail(rec, req)
+	h.KanbanBoard(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
@@ -611,15 +574,71 @@ func TestDeleteProjectHandler_NotFound(t *testing.T) {
 	}
 }
 
-func TestHomeHandler_CompletedTabInvalidDateRange(t *testing.T) {
-	h, _ := setupTestHandlers(t)
+func TestMoveTaskHandler_Success(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
 
-	req := httptest.NewRequest("GET", "/?tab=completed&start_date=2026-02-10&end_date=2026-02-01", nil)
+	project := &models.Project{Name: "Test", Type: "project"}
+	s.CreateProject(ctx, project)
+	task := &models.Task{ProjectID: project.ID, Description: "Test", Priority: "medium"}
+	s.CreateTask(ctx, task)
+
+	body, _ := json.Marshal(map[string]interface{}{"status": "in_progress", "sort_order": 1})
+	req := httptest.NewRequest("POST", "/api/tasks/1/move", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	h.Home(rec, req)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	h.MoveTask(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	updated, _ := s.GetTask(ctx, 1)
+	if updated.Status != "in_progress" {
+		t.Fatalf("expected status in_progress, got %s", updated.Status)
+	}
+	if updated.Completed {
+		t.Fatal("expected task not to be completed")
+	}
+}
+
+func TestMoveTaskHandler_ToDone(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	project := &models.Project{Name: "Test", Type: "project"}
+	s.CreateProject(ctx, project)
+	task := &models.Task{ProjectID: project.ID, Description: "Test", Priority: "medium"}
+	s.CreateTask(ctx, task)
+
+	body, _ := json.Marshal(map[string]interface{}{"status": "done", "sort_order": 1})
+	req := httptest.NewRequest("POST", "/api/tasks/1/move", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "1")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.MoveTask(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	updated, _ := s.GetTask(ctx, 1)
+	if updated.Status != "done" {
+		t.Fatalf("expected status done, got %s", updated.Status)
+	}
+	if !updated.Completed {
+		t.Fatal("expected task to be completed")
+	}
+	if updated.CompletedAt == nil {
+		t.Fatal("expected completed_at to be set")
 	}
 }

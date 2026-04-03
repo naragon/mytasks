@@ -33,7 +33,7 @@ func TestTaskValidation_RequiredFields(t *testing.T) {
 		},
 		{
 			name:    "valid task should pass",
-			task:    Task{Description: "Test task", ProjectID: 1, Priority: "medium"},
+			task:    Task{Description: "Test task", ProjectID: 1, Priority: "medium", Status: "todo"},
 			wantErr: false,
 		},
 	}
@@ -65,28 +65,28 @@ func TestTaskValidation_PriorityValues(t *testing.T) {
 	}{
 		{
 			name:    "high priority is valid",
-			task:    Task{Description: "Test", ProjectID: 1, Priority: "high"},
+			task:    Task{Description: "Test", ProjectID: 1, Priority: "high", Status: "todo"},
 			wantErr: false,
 		},
 		{
 			name:    "medium priority is valid",
-			task:    Task{Description: "Test", ProjectID: 1, Priority: "medium"},
+			task:    Task{Description: "Test", ProjectID: 1, Priority: "medium", Status: "todo"},
 			wantErr: false,
 		},
 		{
 			name:    "low priority is valid",
-			task:    Task{Description: "Test", ProjectID: 1, Priority: "low"},
+			task:    Task{Description: "Test", ProjectID: 1, Priority: "low", Status: "todo"},
 			wantErr: false,
 		},
 		{
 			name:    "empty priority should fail",
-			task:    Task{Description: "Test", ProjectID: 1, Priority: ""},
+			task:    Task{Description: "Test", ProjectID: 1, Priority: "", Status: "todo"},
 			wantErr: true,
 			errMsg:  "priority must be 'high', 'medium', or 'low'",
 		},
 		{
 			name:    "invalid priority should fail",
-			task:    Task{Description: "Test", ProjectID: 1, Priority: "urgent"},
+			task:    Task{Description: "Test", ProjectID: 1, Priority: "urgent", Status: "todo"},
 			wantErr: true,
 			errMsg:  "priority must be 'high', 'medium', or 'low'",
 		},
@@ -114,12 +114,12 @@ func TestTaskValidation_NotesLength(t *testing.T) {
 	validNotes := strings.Repeat("a", 255)
 	invalidNotes := strings.Repeat("a", 256)
 
-	valid := Task{Description: "Task", ProjectID: 1, Priority: "medium", Notes: validNotes}
+	valid := Task{Description: "Task", ProjectID: 1, Priority: "medium", Status: "todo", Notes: validNotes}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("expected 255-char notes to be valid, got error: %v", err)
 	}
 
-	invalid := Task{Description: "Task", ProjectID: 1, Priority: "medium", Notes: invalidNotes}
+	invalid := Task{Description: "Task", ProjectID: 1, Priority: "medium", Status: "todo", Notes: invalidNotes}
 	err := invalid.Validate()
 	if err == nil {
 		t.Fatal("expected validation error for notes longer than 255")
@@ -139,23 +139,23 @@ func TestTask_IsOverdue(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "past due date and not completed is overdue",
-			task:     Task{DueDate: &yesterday, Completed: false},
+			name:     "past due date and not done is overdue",
+			task:     Task{DueDate: &yesterday, Status: "todo"},
 			expected: true,
 		},
 		{
-			name:     "past due date but completed is not overdue",
-			task:     Task{DueDate: &yesterday, Completed: true},
+			name:     "past due date but done is not overdue",
+			task:     Task{DueDate: &yesterday, Status: "done"},
 			expected: false,
 		},
 		{
 			name:     "future due date is not overdue",
-			task:     Task{DueDate: &tomorrow, Completed: false},
+			task:     Task{DueDate: &tomorrow, Status: "todo"},
 			expected: false,
 		},
 		{
 			name:     "no due date is not overdue",
-			task:     Task{DueDate: nil, Completed: false},
+			task:     Task{DueDate: nil, Status: "todo"},
 			expected: false,
 		},
 	}

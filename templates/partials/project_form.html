@@ -6,10 +6,10 @@
       hx-swap="none"
       {{else}}
       hx-post="/api/projects"
-      hx-target="#projects-list"
-      hx-swap="beforeend"
+      hx-swap="none"
       {{end}}
-      hx-on::after-request="if(event.detail.successful){ this.closest('.form-container').classList.add('hidden'); this.reset(); }">
+      hx-on::after-request="if(event.detail.successful){ window.location.reload(); }">
+    <input type="hidden" name="type" value="project">
     <div class="form-group">
         <label for="project-name">Name *</label>
         <input type="text"
@@ -26,21 +26,12 @@
                   rows="2"
                   placeholder="Optional description">{{.Description}}</textarea>
     </div>
-    <div class="form-row">
-        <div class="form-group">
-            <label for="project-type">Type *</label>
-            <select id="project-type" name="type" required onchange="toggleTargetDate(this)">
-                <option value="project" {{if eq .Type "project"}}selected{{end}}>Project</option>
-                <option value="category" {{if eq .Type "category"}}selected{{end}}>Category</option>
-            </select>
-        </div>
-        <div class="form-group" id="target-date-group">
-            <label for="project-target-date">Target Date</label>
-            <input type="date"
-                   id="project-target-date"
-                   name="target_date"
-                   {{if .TargetDate}}value="{{.TargetDate.Format "2006-01-02"}}"{{end}}>
-        </div>
+    <div class="form-group">
+        <label for="project-target-date">Target Date</label>
+        <input type="date"
+               id="project-target-date"
+               name="target_date"
+               {{if .TargetDate}}value="{{.TargetDate.Format "2006-01-02"}}"{{end}}>
     </div>
     <div class="form-actions">
         <button type="button" class="btn btn-secondary" onclick="hideForm(this)">Cancel</button>

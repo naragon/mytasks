@@ -314,17 +314,27 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 	task.CreatedAt = now
 	task.UpdatedAt = now
 
+	if task.Status == "" {
+		task.Status = "todo"
+	}
+
+	// Sync completed from status
+	task.Completed = task.Status == "done"
+	if task.Completed && task.CompletedAt == nil {
+		t := now
+		task.CompletedAt = &t
+	}
+	if !task.Completed {
+		task.CompletedAt = nil
+	}
+
 	var dueDate interface{}
 	if task.DueDate != nil {
 		dueDate = task.DueDate.Format("2006-01-02")
 	}
 
 	var completedAt interface{}
-	if task.Completed {
-		if task.CompletedAt == nil {
-			t := now
-			task.CompletedAt = &t
-		}
+	if task.CompletedAt != nil {
 		completedAt = task.CompletedAt.Format("2006-01-02")
 	}
 
@@ -334,11 +344,11 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *models.Task) error {
 	}
 
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO tasks (project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?,
-			CASE WHEN ? > 0 THEN ? ELSE COALESCE((SELECT MAX(sort_order) + 1 FROM tasks WHERE project_id = ?), 1) END,
+		INSERT INTO tasks (project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+			CASE WHEN ? > 0 THEN ? ELSE COALESCE((SELECT MAX(sort_order) + 1 FROM tasks WHERE project_id = ? AND status = ?), 1) END,
 			?, ?)
-	`, task.ProjectID, task.Description, task.Notes, task.Priority, dueDate, task.Completed, completedAt, sortOrder, sortOrder, task.ProjectID, now, now)
+	`, task.ProjectID, task.Description, task.Notes, task.Priority, task.Status, dueDate, task.Completed, completedAt, sortOrder, sortOrder, task.ProjectID, task.Status, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
 	}
@@ -363,7 +373,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 	var completedAt sql.NullString
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE id = ?
 	`, id).Scan(
 		&task.ID,
@@ -371,6 +381,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 		&task.Description,
 		&task.Notes,
 		&task.Priority,
+		&task.Status,
 		&dueDate,
 		&task.Completed,
 		&completedAt,
@@ -408,7 +419,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 // If limit is 0, all tasks are returned.
 func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? ORDER BY sort_order ASC
 	`
 	args := []interface{}{projectID}
@@ -435,6 +446,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 			&task.Description,
 			&task.Notes,
 			&task.Priority,
+			&task.Status,
 			&dueDate,
 			&task.Completed,
 			&completedAt,
@@ -472,7 +484,7 @@ func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, l
 // If limit is 0, all matching tasks are returned.
 func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID int64, completed bool, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? AND completed = ? ORDER BY sort_order ASC
 	`
 	args := []interface{}{projectID, completed}
@@ -499,6 +511,7 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 			&task.Description,
 			&task.Notes,
 			&task.Priority,
+			&task.Status,
 			&dueDate,
 			&task.Completed,
 			&completedAt,
@@ -536,7 +549,7 @@ func (s *SQLiteStore) ListTasksByProjectFiltered(ctx context.Context, projectID 
 // When from/to are nil they are not applied as filters. If limit is 0, all matching tasks are returned.
 func (s *SQLiteStore) ListTasksByProjectCompletedBetween(ctx context.Context, projectID int64, from, to *time.Time, limit int) ([]models.Task, error) {
 	query := `
-		SELECT id, project_id, description, notes, priority, due_date, completed, completed_at, sort_order, created_at, updated_at
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
 		FROM tasks WHERE project_id = ? AND completed = TRUE AND completed_at IS NOT NULL
 	`
 	args := []interface{}{projectID}
@@ -576,6 +589,7 @@ func (s *SQLiteStore) ListTasksByProjectCompletedBetween(ctx context.Context, pr
 			&task.Description,
 			&task.Notes,
 			&task.Priority,
+			&task.Status,
 			&dueDate,
 			&task.Completed,
 			&completedAt,
@@ -623,6 +637,9 @@ func (s *SQLiteStore) UpdateTask(ctx context.Context, task *models.Task) error {
 		return fmt.Errorf("failed to load task completion state: %w", err)
 	}
 
+	// Sync completed from status
+	task.Completed = task.Status == "done"
+
 	var dueDate interface{}
 	if task.DueDate != nil {
 		dueDate = task.DueDate.Format("2006-01-02")
@@ -646,9 +663,9 @@ func (s *SQLiteStore) UpdateTask(ctx context.Context, task *models.Task) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE tasks
-		SET description = ?, notes = ?, priority = ?, due_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
+		SET description = ?, notes = ?, priority = ?, status = ?, due_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
 		WHERE id = ?
-	`, task.Description, task.Notes, task.Priority, dueDate, task.Completed, completedAt, task.SortOrder, task.UpdatedAt, task.ID)
+	`, task.Description, task.Notes, task.Priority, task.Status, dueDate, task.Completed, completedAt, task.SortOrder, task.UpdatedAt, task.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
 	}
@@ -671,6 +688,7 @@ func (s *SQLiteStore) ToggleTaskComplete(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE tasks
 		SET completed = NOT completed,
+		    status = CASE WHEN completed = 0 THEN 'done' ELSE 'todo' END,
 		    completed_at = CASE
 		        WHEN completed = 0 THEN ?
 		        ELSE NULL
@@ -682,6 +700,283 @@ func (s *SQLiteStore) ToggleTaskComplete(ctx context.Context, id int64) error {
 		return fmt.Errorf("failed to toggle task complete: %w", err)
 	}
 	return nil
+}
+
+// ListActiveProjects retrieves all active (non-completed) projects ordered by sort_order.
+func (s *SQLiteStore) ListActiveProjects(ctx context.Context) ([]models.Project, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM projects WHERE completed = FALSE ORDER BY sort_order ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active projects: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []models.Project
+	for rows.Next() {
+		var project models.Project
+		var targetDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&project.ID,
+			&project.Name,
+			&project.Description,
+			&project.Type,
+			&targetDate,
+			&project.Completed,
+			&completedAt,
+			&project.SortOrder,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+
+		if targetDate.Valid {
+			parsedDate, err := parseSQLiteDate(targetDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse project target_date: %w", err)
+			}
+			project.TargetDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse project completed_at: %w", err)
+			}
+			project.CompletedAt = parsedDate
+		}
+
+		projects = append(projects, project)
+	}
+
+	return projects, rows.Err()
+}
+
+// ListCompletedProjects retrieves all completed projects ordered by completion date.
+func (s *SQLiteStore) ListCompletedProjects(ctx context.Context) ([]models.Project, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM projects WHERE completed = TRUE ORDER BY completed_at DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list completed projects: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []models.Project
+	for rows.Next() {
+		var project models.Project
+		var targetDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&project.ID,
+			&project.Name,
+			&project.Description,
+			&project.Type,
+			&targetDate,
+			&project.Completed,
+			&completedAt,
+			&project.SortOrder,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+
+		if targetDate.Valid {
+			parsedDate, err := parseSQLiteDate(targetDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse project target_date: %w", err)
+			}
+			project.TargetDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse project completed_at: %w", err)
+			}
+			project.CompletedAt = parsedDate
+		}
+
+		projects = append(projects, project)
+	}
+
+	return projects, rows.Err()
+}
+
+// ListTasksByProjectAndStatus retrieves tasks for a project with a specific status.
+func (s *SQLiteStore) ListTasksByProjectAndStatus(ctx context.Context, projectID int64, status string) ([]models.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM tasks WHERE project_id = ? AND status = ? ORDER BY sort_order ASC
+	`, projectID, status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tasks by status: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		var dueDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&task.ID,
+			&task.ProjectID,
+			&task.Description,
+			&task.Notes,
+			&task.Priority,
+			&task.Status,
+			&dueDate,
+			&task.Completed,
+			&completedAt,
+			&task.SortOrder,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task: %w", err)
+		}
+
+		if dueDate.Valid {
+			parsedDate, err := parseSQLiteDate(dueDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			}
+			task.DueDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			}
+			task.CompletedAt = parsedDate
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks, rows.Err()
+}
+
+// ListUpcomingTasks retrieves non-done tasks with due dates within the given number of days across all active projects.
+func (s *SQLiteStore) ListUpcomingTasks(ctx context.Context, days int) ([]models.Task, error) {
+	cutoff := time.Now().AddDate(0, 0, days).Format("2006-01-02")
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT t.id, t.project_id, t.description, t.notes, t.priority, t.status, t.due_date, t.completed, t.completed_at, t.sort_order, t.created_at, t.updated_at, p.name
+		FROM tasks t
+		JOIN projects p ON t.project_id = p.id
+		WHERE t.status != 'done' AND t.due_date IS NOT NULL AND t.due_date <= ?
+		AND p.completed = FALSE
+		ORDER BY t.due_date ASC, t.priority ASC
+	`, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list upcoming tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		var dueDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&task.ID,
+			&task.ProjectID,
+			&task.Description,
+			&task.Notes,
+			&task.Priority,
+			&task.Status,
+			&dueDate,
+			&task.Completed,
+			&completedAt,
+			&task.SortOrder,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+			&task.ProjectName,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan upcoming task: %w", err)
+		}
+
+		if dueDate.Valid {
+			parsedDate, err := parseSQLiteDate(dueDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			}
+			task.DueDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			}
+			task.CompletedAt = parsedDate
+		}
+
+		task.Overdue = task.IsOverdue()
+		tasks = append(tasks, task)
+	}
+
+	return tasks, rows.Err()
+}
+
+// MoveTaskToStatus changes a task's status and sort_order within the new status column.
+func (s *SQLiteStore) MoveTaskToStatus(ctx context.Context, taskID int64, newStatus string, newSortOrder int) error {
+	now := time.Now()
+
+	var completedAt interface{}
+	completed := newStatus == "done"
+	if completed {
+		completedAt = now.Format("2006-01-02")
+	}
+
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE tasks
+		SET status = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
+		WHERE id = ?
+	`, newStatus, completed, completedAt, newSortOrder, now, taskID)
+	if err != nil {
+		return fmt.Errorf("failed to move task to status %s: %w", newStatus, err)
+	}
+
+	return nil
+}
+
+// ReorderTasksInStatus updates the sort_order of tasks within a project and status column.
+func (s *SQLiteStore) ReorderTasksInStatus(ctx context.Context, projectID int64, status string, ids []int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, `UPDATE tasks SET sort_order = ? WHERE id = ? AND project_id = ? AND status = ?`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for i, id := range ids {
+		_, err := stmt.ExecContext(ctx, i+1, id, projectID, status)
+		if err != nil {
+			return fmt.Errorf("failed to update sort order: %w", err)
+		}
+	}
+
+	return tx.Commit()
 }
 
 // ReorderTasks updates the sort_order of tasks within a project.

@@ -1,0 +1,104 @@
+{{define "kanban.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - My Tasks</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+<div class="app-layout">
+    {{template "sidebar.html" .}}
+    <main class="main-content">
+        <div class="kanban-page" data-project-id="{{.Project.ID}}">
+            <div class="kanban-header">
+                <div class="kanban-header-info">
+                    <h2>{{.Project.Name}}</h2>
+                    {{if .Project.Description}}
+                    <p class="kanban-description">{{.Project.Description}}</p>
+                    {{end}}
+                    {{if .Project.TargetDate}}
+                    <span class="target-date {{if .Project.IsOverdue}}overdue{{end}}">
+                        Target: {{.Project.TargetDate.Format "Jan 2, 2006"}}
+                    </span>
+                    {{end}}
+                </div>
+                <div class="kanban-header-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="showEditProjectForm()">Edit</button>
+                    {{if .Project.Completed}}
+                    <button class="btn btn-sm btn-secondary"
+                        hx-post="/api/projects/{{.Project.ID}}/reopen"
+                        hx-swap="none">Reopen</button>
+                    {{else}}
+                    <button class="btn btn-sm btn-danger"
+                        hx-post="/api/projects/{{.Project.ID}}/complete"
+                        hx-swap="none"
+                        hx-confirm="Mark this project as complete?">Complete</button>
+                    {{end}}
+                    <button class="btn btn-sm btn-danger"
+                        hx-delete="/api/projects/{{.Project.ID}}"
+                        hx-swap="none"
+                        hx-confirm="Delete this project and all its tasks?"
+                        hx-on::after-request="if(event.detail.successful) window.location.href='/'">Delete</button>
+                </div>
+            </div>
+
+            <div id="edit-project-form" class="form-container hidden">
+                {{template "project_form.html" .Project}}
+            </div>
+
+            <div class="kanban-board">
+                <div class="kanban-column" data-status="todo">
+                    <div class="kanban-column-header">
+                        <h3>To Do</h3>
+                        <span class="kanban-count">{{len .TodoTasks}}</span>
+                        <button class="btn btn-sm btn-link" onclick="showKanbanTaskForm('todo')">+</button>
+                    </div>
+                    <div id="kanban-form-todo" class="form-container hidden" style="margin: 0.5rem; padding: 0.75rem;">
+                        {{template "task_form.html" (dict "ProjectID" .Project.ID "Status" "todo")}}
+                    </div>
+                    <div class="kanban-cards" data-status="todo">
+                        {{range .TodoTasks}}
+                        {{template "kanban_card.html" .}}
+                        {{end}}
+                    </div>
+                </div>
+
+                <div class="kanban-column" data-status="in_progress">
+                    <div class="kanban-column-header">
+                        <h3>In Progress</h3>
+                        <span class="kanban-count">{{len .InProgressTasks}}</span>
+                        <button class="btn btn-sm btn-link" onclick="showKanbanTaskForm('in_progress')">+</button>
+                    </div>
+                    <div id="kanban-form-in_progress" class="form-container hidden" style="margin: 0.5rem; padding: 0.75rem;">
+                        {{template "task_form.html" (dict "ProjectID" .Project.ID "Status" "in_progress")}}
+                    </div>
+                    <div class="kanban-cards" data-status="in_progress">
+                        {{range .InProgressTasks}}
+                        {{template "kanban_card.html" .}}
+                        {{end}}
+                    </div>
+                </div>
+
+                <div class="kanban-column" data-status="done">
+                    <div class="kanban-column-header">
+                        <h3>Done</h3>
+                        <span class="kanban-count">{{len .DoneTasks}}</span>
+                    </div>
+                    <div class="kanban-cards" data-status="done">
+                        {{range .DoneTasks}}
+                        {{template "kanban_card.html" .}}
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+<script src="/static/js/vendor/htmx.min.js"></script>
+<script src="/static/js/vendor/Sortable.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

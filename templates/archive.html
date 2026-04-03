@@ -1,0 +1,115 @@
+{{define "archive.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archive - My Tasks</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+<div class="app-layout">
+    {{template "sidebar.html" .}}
+    <main class="main-content">
+        <div class="archive-page">
+            <div class="page-header">
+                <h2>Archived Projects</h2>
+            </div>
+
+            {{if .ArchivedProjects}}
+            <div class="archive-list">
+                {{range .ArchivedProjects}}
+                {{$totalTasks := add (len .TodoTasks) (add (len .InProgressTasks) (len .DoneTasks))}}
+                <div class="archive-card" id="project-{{.ID}}">
+                    <details class="archive-details">
+                        <summary class="archive-summary">
+                            <div class="archive-summary-info">
+                                <span class="archive-project-name">{{.Name}}</span>
+                                {{if .CompletedAt}}
+                                <span class="completed-date">Completed {{.CompletedAt.Format "Jan 2, 2006"}}</span>
+                                {{end}}
+                                {{if gt $totalTasks 0}}
+                                <span class="archive-task-count">{{$totalTasks}} task{{if gt $totalTasks 1}}s{{end}}</span>
+                                {{end}}
+                            </div>
+                            <div class="archive-summary-actions">
+                                <button class="btn btn-sm btn-secondary"
+                                    hx-post="/api/projects/{{.ID}}/reopen"
+                                    hx-swap="none"
+                                    onclick="event.preventDefault(); event.stopPropagation();">Reopen</button>
+                            </div>
+                        </summary>
+
+                        <div class="archive-details-body">
+                            {{if .Description}}
+                            <p class="archive-card-description">{{.Description}}</p>
+                            {{end}}
+
+                            {{$hasTasks := or (gt (len .TodoTasks) 0) (gt (len .InProgressTasks) 0) (gt (len .DoneTasks) 0)}}
+                            {{if $hasTasks}}
+                            <div class="archive-tasks">
+                                {{if .DoneTasks}}
+                                <div class="archive-task-group">
+                                    <h4 class="archive-task-group-title">Done <span class="kanban-count">{{len .DoneTasks}}</span></h4>
+                                    <ul class="archive-task-list">
+                                        {{range .DoneTasks}}
+                                        <li class="archive-task-item status-done">
+                                            <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                                            <span class="archive-task-description">{{.Description}}</span>
+                                            {{if .DueDate}}<span class="due-date">{{.DueDate.Format "Jan 2, 2006"}}</span>{{end}}
+                                        </li>
+                                        {{end}}
+                                    </ul>
+                                </div>
+                                {{end}}
+                                {{if .InProgressTasks}}
+                                <div class="archive-task-group">
+                                    <h4 class="archive-task-group-title">In Progress <span class="kanban-count">{{len .InProgressTasks}}</span></h4>
+                                    <ul class="archive-task-list">
+                                        {{range .InProgressTasks}}
+                                        <li class="archive-task-item status-in-progress">
+                                            <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                                            <span class="archive-task-description">{{.Description}}</span>
+                                            {{if .DueDate}}<span class="due-date">{{.DueDate.Format "Jan 2, 2006"}}</span>{{end}}
+                                        </li>
+                                        {{end}}
+                                    </ul>
+                                </div>
+                                {{end}}
+                                {{if .TodoTasks}}
+                                <div class="archive-task-group">
+                                    <h4 class="archive-task-group-title">To Do <span class="kanban-count">{{len .TodoTasks}}</span></h4>
+                                    <ul class="archive-task-list">
+                                        {{range .TodoTasks}}
+                                        <li class="archive-task-item status-todo">
+                                            <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                                            <span class="archive-task-description">{{.Description}}</span>
+                                            {{if .DueDate}}<span class="due-date">{{.DueDate.Format "Jan 2, 2006"}}</span>{{end}}
+                                        </li>
+                                        {{end}}
+                                    </ul>
+                                </div>
+                                {{end}}
+                            </div>
+                            {{else}}
+                            <p class="archive-no-tasks">No tasks in this project.</p>
+                            {{end}}
+                        </div>
+                    </details>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <p>No archived projects.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+</div>
+<script src="/static/js/vendor/htmx.min.js"></script>
+<script src="/static/js/vendor/Sortable.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

@@ -1,6 +1,22 @@
 # Binary
 mytasks
 
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go module cache / vendor
+vendor/
+
+# Node / npm
+node_modules/
+package-lock.json
+
 # Data directory
 data/
 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"mytasks/internal/models"
@@ -74,7 +75,9 @@ func (h *Handlers) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.renderPartial(w, "project_card.html", project)
+	// Redirect to the new project's Kanban board
+	w.Header().Set("HX-Redirect", fmt.Sprintf("/projects/%d", project.ID))
+	w.WriteHeader(http.StatusOK)
 }
 
 // UpdateProject updates an existing project.
@@ -153,7 +156,7 @@ func (h *Handlers) CompleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("HX-Redirect", "/")
+	w.Header().Set("HX-Redirect", "/archive")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -172,7 +175,7 @@ func (h *Handlers) ReopenProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("HX-Redirect", "/")
+	w.Header().Set("HX-Redirect", fmt.Sprintf("/projects/%d", id))
 	w.WriteHeader(http.StatusOK)
 }
 

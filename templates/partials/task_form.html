@@ -1,92 +1,114 @@
 {{define "task_form.html"}}
+{{if .Task}}
+{{/* Editing an existing task (from kanban card or other context) */}}
 <form class="form task-form"
-      {{if .ID}}
-      hx-put="/api/tasks/{{.ID}}"
-      {{if .InlineEdit}}
-      hx-target="this"
+      hx-put="/api/tasks/{{.Task.ID}}"
+      hx-target="#task-{{.Task.ID}}"
+      hx-swap="outerHTML"
+      hx-on::after-request="if(event.detail.successful){window.location.reload()}">
+    <div class="form-group">
+        <label for="task-description-{{.Task.ID}}">Description *</label>
+        <input type="text" id="task-description-{{.Task.ID}}" name="description" value="{{.Task.Description}}" required placeholder="What needs to be done?">
+    </div>
+    <div class="form-group">
+        <label for="task-notes-{{.Task.ID}}">Notes</label>
+        <textarea id="task-notes-{{.Task.ID}}" name="notes" maxlength="255" rows="2" placeholder="Optional notes (max 255 characters)">{{.Task.Notes}}</textarea>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="task-priority-{{.Task.ID}}">Priority</label>
+            <select id="task-priority-{{.Task.ID}}" name="priority" required>
+                <option value="high" {{if eq .Task.Priority "high"}}selected{{end}}>High</option>
+                <option value="medium" {{if eq .Task.Priority "medium"}}selected{{end}}>Medium</option>
+                <option value="low" {{if eq .Task.Priority "low"}}selected{{end}}>Low</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="task-status-{{.Task.ID}}">Status</label>
+            <select id="task-status-{{.Task.ID}}" name="status" required>
+                <option value="todo" {{if eq .Task.Status "todo"}}selected{{end}}>To Do</option>
+                <option value="in_progress" {{if eq .Task.Status "in_progress"}}selected{{end}}>In Progress</option>
+                <option value="done" {{if eq .Task.Status "done"}}selected{{end}}>Done</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-group">
+        <label for="task-due-date-{{.Task.ID}}">Due Date</label>
+        <input type="date" id="task-due-date-{{.Task.ID}}" name="due_date" {{if .Task.DueDate}}value="{{.Task.DueDate.Format "2006-01-02"}}"{{end}}>
+    </div>
+    <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="toggleKanbanCardEdit({{.Task.ID}})">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update</button>
+    </div>
+</form>
+{{else if .ProjectID}}
+{{/* Creating a new task in a specific project/status */}}
+<form class="form task-form"
+      hx-post="/api/projects/{{.ProjectID}}/tasks"
       hx-swap="none"
-      {{else}}
+      hx-on::after-request="if(event.detail.successful){window.location.reload()}">
+    <input type="hidden" name="status" value="{{.Status}}">
+    <div class="form-group">
+        <input type="text" name="description" required placeholder="What needs to be done?">
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <select name="priority" required>
+                <option value="high">High</option>
+                <option value="medium" selected>Medium</option>
+                <option value="low">Low</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <input type="date" name="due_date">
+        </div>
+    </div>
+    <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="hideForm(this)">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add</button>
+    </div>
+</form>
+{{else if .ID}}
+{{/* Legacy: editing existing task passed directly (non-kanban context) */}}
+<form class="form task-form"
+      hx-put="/api/tasks/{{.ID}}"
       hx-target="#task-{{.ID}}"
       hx-swap="outerHTML"
-      {{end}}
-      {{else}}
-      {{if .SelectProject}}
-      hx-post="/api/tasks"
-      hx-swap="none"
-      {{else}}
-      hx-post="/api/projects/{{.ProjectID}}/tasks"
-      hx-target="#tasks-list"
-      hx-swap="beforeend"
-      {{end}}
-      {{end}}
       {{if .InlineEdit}}
-      hx-on::after-request="if(event.detail.successful){window.location.reload()}"
-      {{else if .ReloadOnSuccess}}
       hx-on::after-request="if(event.detail.successful){window.location.reload()}"
       {{else}}
       hx-on::after-request="this.closest('.form-container').classList.add('hidden'); this.reset();"
       {{end}}>
     <div class="form-group">
-        <label for="task-description{{if .ID}}-{{.ID}}{{end}}">Description *</label>
-        <input type="text"
-               id="task-description{{if .ID}}-{{.ID}}{{end}}"
-               name="description"
-               value="{{.Description}}"
-               required
-               placeholder="What needs to be done?">
+        <label for="task-description-{{.ID}}">Description *</label>
+        <input type="text" id="task-description-{{.ID}}" name="description" value="{{.Description}}" required placeholder="What needs to be done?">
     </div>
     <div class="form-group">
-        <label for="task-notes{{if .ID}}-{{.ID}}{{end}}">Notes</label>
-        <textarea id="task-notes{{if .ID}}-{{.ID}}{{end}}"
-                  name="notes"
-                  maxlength="255"
-                  rows="3"
-                  placeholder="Optional notes (max 255 characters)">{{.Notes}}</textarea>
+        <label for="task-notes-{{.ID}}">Notes</label>
+        <textarea id="task-notes-{{.ID}}" name="notes" maxlength="255" rows="2" placeholder="Optional notes">{{.Notes}}</textarea>
     </div>
-    {{if and (not .ID) .SelectProject}}
-    <div class="form-group">
-        <label for="task-project">Project / Category *</label>
-        <select id="task-project" name="project_id" required>
-            {{range .Projects}}
-            <option value="{{.ID}}" {{if eq $.ProjectID .ID}}selected{{end}}>{{.Name}}</option>
-            {{end}}
-        </select>
-    </div>
-    {{end}}
     <div class="form-row">
         <div class="form-group">
-            <label for="task-priority{{if .ID}}-{{.ID}}{{end}}">Priority *</label>
-            <select id="task-priority{{if .ID}}-{{.ID}}{{end}}" name="priority" required>
+            <label for="task-priority-{{.ID}}">Priority</label>
+            <select id="task-priority-{{.ID}}" name="priority" required>
                 <option value="high" {{if eq .Priority "high"}}selected{{end}}>High</option>
-                <option value="medium" {{if or (eq .Priority "medium") (eq .Priority "")}}selected{{end}}>Medium</option>
+                <option value="medium" {{if eq .Priority "medium"}}selected{{end}}>Medium</option>
                 <option value="low" {{if eq .Priority "low"}}selected{{end}}>Low</option>
             </select>
         </div>
         <div class="form-group">
-            <label for="task-due-date{{if .ID}}-{{.ID}}{{end}}">Due Date</label>
-            <input type="date"
-                   id="task-due-date{{if .ID}}-{{.ID}}{{end}}"
-                   name="due_date"
-                   {{if .DueDate}}value="{{.DueDate.Format "2006-01-02"}}"{{end}}>
+            <label for="task-due-date-{{.ID}}">Due Date</label>
+            <input type="date" id="task-due-date-{{.ID}}" name="due_date" {{if .DueDate}}value="{{.DueDate.Format "2006-01-02"}}"{{end}}>
         </div>
     </div>
-    {{if and .ID (not .InlineEdit)}}
-    <div class="form-group form-checkbox">
-        <input type="checkbox"
-               id="task-completed{{if .ID}}-{{.ID}}{{end}}"
-               name="completed"
-               value="true"
-               {{if .Completed}}checked{{end}}>
-        <label for="task-completed{{if .ID}}-{{.ID}}{{end}}">Completed</label>
-    </div>
-    {{end}}
     <div class="form-actions">
         {{if .InlineEdit}}
         <button type="button" class="btn btn-secondary" onclick="toggleInlineTaskEdit({{.ID}})">Cancel</button>
         {{else}}
         <button type="button" class="btn btn-secondary" onclick="hideForm(this)">Cancel</button>
         {{end}}
-        <button type="submit" class="btn btn-primary">{{if .ID}}Update{{else}}Add{{end}} Task</button>
+        <button type="submit" class="btn btn-primary">Update</button>
     </div>
 </form>
+{{end}}
 {{end}}

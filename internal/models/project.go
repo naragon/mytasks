@@ -30,20 +30,12 @@ func (p *Project) Validate() error {
 		return errors.New("name is required")
 	}
 
-	if p.Type != "project" && p.Type != "category" {
-		return errors.New("type must be 'project' or 'category'")
-	}
-
-	if p.Type == "category" && p.TargetDate != nil {
-		return errors.New("category cannot have a target date")
+	// Default type to "project" — the category distinction is no longer used in the UI
+	if p.Type == "" {
+		p.Type = "project"
 	}
 
 	return nil
-}
-
-// IsCategory returns true if this project is a category (ongoing, no target date).
-func (p *Project) IsCategory() bool {
-	return p.Type == "category"
 }
 
 // IsOverdue returns true if the project has a target date that has passed.

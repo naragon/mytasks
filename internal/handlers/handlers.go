@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"html/template"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"mytasks/internal/models"
 	"mytasks/internal/store"
 )
 
@@ -16,6 +18,15 @@ import (
 type Handlers struct {
 	store     store.Store
 	templates *template.Template
+}
+
+// PageData is the base data structure for all page templates.
+// It provides sidebar data and page-specific fields.
+type PageData struct {
+	Title            string
+	ActiveProjects   []models.Project
+	CurrentProjectID int64
+	CurrentView      string // "kanban", "upcoming", "archive"
 }
 
 // New creates a new Handlers instance.
@@ -74,4 +85,9 @@ func (h *Handlers) renderTemplate(w http.ResponseWriter, name string, data inter
 // renderPartial renders a partial template (for htmx responses).
 func (h *Handlers) renderPartial(w http.ResponseWriter, name string, data interface{}) {
 	h.render(w, name, data)
+}
+
+// loadActiveProjects loads all active projects for the sidebar.
+func (h *Handlers) loadActiveProjects(ctx context.Context) ([]models.Project, error) {
+	return h.store.ListActiveProjects(ctx)
 }

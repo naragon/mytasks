@@ -66,7 +66,9 @@ func main() {
 
 	// Page routes
 	r.Get("/", h.Home)
-	r.Get("/projects/{id}", h.ProjectDetail)
+	r.Get("/projects/{id}", h.KanbanBoard)
+	r.Get("/upcoming", h.Upcoming)
+	r.Get("/archive", h.Archive)
 
 	// Project API routes
 	r.Get("/api/projects/form", h.GetProjectForm)
@@ -82,9 +84,9 @@ func main() {
 	r.Get("/api/projects/{project_id}/tasks/form", h.GetTaskForm)
 	r.Get("/api/tasks/{id}/form", h.GetTaskForm)
 	r.Post("/api/projects/{id}/tasks", h.CreateTask)
-	r.Post("/api/tasks", h.CreateTask)
 	r.Put("/api/tasks/{id}", h.UpdateTask)
 	r.Delete("/api/tasks/{id}", h.DeleteTask)
+	r.Post("/api/tasks/{id}/move", h.MoveTask)
 	r.Post("/api/tasks/{id}/toggle", h.ToggleTask)
 	r.Post("/api/projects/{id}/tasks/reorder", h.ReorderTasks)
 
@@ -99,6 +101,7 @@ func main() {
 func parseTemplates() (*template.Template, error) {
 	// Custom template functions
 	funcMap := template.FuncMap{
+		"add": func(a, b int) int { return a + b },
 		"dict": func(values ...interface{}) map[string]interface{} {
 			if len(values)%2 != 0 {
 				return nil

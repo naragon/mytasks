@@ -1,0 +1,62 @@
+{{define "upcoming.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upcoming - My Tasks</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+<div class="app-layout">
+    {{template "sidebar.html" .}}
+    <main class="main-content">
+        <div class="upcoming-page">
+            <div class="page-header">
+                <h2>Upcoming Tasks</h2>
+            </div>
+
+            <div class="upcoming-filters">
+                <a href="/upcoming?days=7" class="btn btn-sm {{if eq .UpcomingDays 7}}btn-primary{{else}}btn-secondary{{end}}">7 Days</a>
+                <a href="/upcoming?days=14" class="btn btn-sm {{if eq .UpcomingDays 14}}btn-primary{{else}}btn-secondary{{end}}">14 Days</a>
+                <a href="/upcoming?days=30" class="btn btn-sm {{if eq .UpcomingDays 30}}btn-primary{{else}}btn-secondary{{end}}">30 Days</a>
+            </div>
+
+            {{if .UpcomingTasks}}
+            <div class="upcoming-list">
+                {{range .UpcomingTasks}}
+                <div class="upcoming-task {{if .Overdue}}overdue{{end}}" id="task-{{.ID}}">
+                    <div class="upcoming-task-main">
+                        <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                        <span class="upcoming-task-description">{{.Description}}</span>
+                        {{if .Overdue}}<span class="overdue-flag">overdue</span>{{end}}
+                    </div>
+                    <div class="upcoming-task-meta">
+                        {{if .DueDate}}
+                        <span class="due-date {{if .Overdue}}overdue{{end}}">{{.DueDate.Format "Jan 2, 2006"}}</span>
+                        {{end}}
+                        <span class="project-name">
+                            <a href="/projects/{{.ProjectID}}">{{.ProjectName}}</a>
+                        </span>
+                        <span class="status-badge status-{{.Status}}">{{.Status}}</span>
+                    </div>
+                    {{if .Notes}}
+                    <div class="upcoming-task-notes">{{.Notes}}</div>
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <p>No upcoming tasks in the next {{.UpcomingDays}} days.</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+</div>
+<script src="/static/js/vendor/htmx.min.js"></script>
+<script src="/static/js/vendor/Sortable.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

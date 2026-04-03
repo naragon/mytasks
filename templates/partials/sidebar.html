@@ -1,0 +1,41 @@
+{{define "sidebar.html"}}
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h1 class="sidebar-title"><a href="/">My Tasks</a></h1>
+    </div>
+    <nav class="sidebar-nav">
+        <div class="sidebar-section">
+            <div class="sidebar-section-header">
+                <span>Projects</span>
+                <button class="btn btn-sm btn-link" onclick="showProjectForm()">+ New</button>
+            </div>
+            <div id="new-project-form" class="form-container hidden" style="padding: 0.5rem;">
+                {{template "project_form.html" (dict)}}
+            </div>
+            <ul class="sidebar-list" id="sidebar-projects">
+                {{range .ActiveProjects}}
+                <li class="sidebar-item {{if eq .ID $.CurrentProjectID}}active{{end}}">
+                    <a href="/projects/{{.ID}}">
+                        <span class="sidebar-item-name">{{.Name}}</span>
+                        {{if .TargetDate}}
+                        <span class="sidebar-item-date {{if .IsOverdue}}overdue{{end}}">{{.TargetDate.Format "Jan 2"}}</span>
+                        {{end}}
+                    </a>
+                </li>
+                {{end}}
+            </ul>
+        </div>
+        <div class="sidebar-divider"></div>
+        <div class="sidebar-section">
+            <ul class="sidebar-list">
+                <li class="sidebar-item {{if eq .CurrentView "upcoming"}}active{{end}}">
+                    <a href="/upcoming">Upcoming</a>
+                </li>
+                <li class="sidebar-item {{if eq .CurrentView "archive"}}active{{end}}">
+                    <a href="/archive">Archive</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+</aside>
+{{end}}

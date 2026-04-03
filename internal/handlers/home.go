@@ -1,202 +1,31 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
-	"sort"
-	"strconv"
-	"time"
-
-	"mytasks/internal/models"
 )
 
-// HomeData holds data for the home page template.
-type HomeData struct {
-	Title              string
-	Tab                string // "active", "completed", "upcoming", or "someday"
-	Projects           []models.Project
-	ActiveProjects     []models.Project
-	UpcomingTasks      []models.Task
-	SomedayTasks       []models.Task
-	UpcomingDays       int
-	CompletedStartDate string
-	CompletedEndDate   string
-}
-
-// Home renders the home page with all projects and their tasks filtered by tab.
+// Home redirects to the first active project's Kanban board, or shows an empty state.
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Get the tab from query parameter, default to "active"
-	tab := r.URL.Query().Get("tab")
-	if tab != "completed" && tab != "upcoming" && tab != "someday" {
-		tab = "active"
-	}
-
-	projects, err := h.store.ListProjects(ctx)
+	activeProjects, err := h.loadActiveProjects(ctx)
 	if err != nil {
 		respondServerError(w, err)
 		return
 	}
 
-	// Filter tasks based on tab (completed = true for completed tab, false for active)
-	showCompleted := tab == "completed"
-	showUpcoming := tab == "upcoming"
-	showSomeday := tab == "someday"
-
-	upcomingDays := 30
-	if showUpcoming {
-		if v := r.URL.Query().Get("days"); v != "" {
-			days, err := strconv.Atoi(v)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, "invalid days")
-				return
-			}
-			if days != 7 && days != 14 && days != 30 {
-				respondError(w, http.StatusBadRequest, "days must be 7, 14, or 30")
-				return
-			}
-			upcomingDays = days
-		}
+	if len(activeProjects) > 0 {
+		http.Redirect(w, r, fmt.Sprintf("/projects/%d", activeProjects[0].ID), http.StatusFound)
+		return
 	}
 
-	now := time.Now()
-	completedEnd := now
-	completedStart := now.AddDate(0, 0, -30)
-
-	if showCompleted {
-		if v := r.URL.Query().Get("start_date"); v != "" {
-			t, err := time.Parse("2006-01-02", v)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, "invalid start_date")
-				return
-			}
-			completedStart = t
-		}
-
-		if v := r.URL.Query().Get("end_date"); v != "" {
-			t, err := time.Parse("2006-01-02", v)
-			if err != nil {
-				respondError(w, http.StatusBadRequest, "invalid end_date")
-				return
-			}
-			completedEnd = t
-		}
-
-		if completedStart.After(completedEnd) {
-			respondError(w, http.StatusBadRequest, "start_date cannot be after end_date")
-			return
-		}
+	// No active projects — show empty state with sidebar
+	data := PageData{
+		Title:          "My Tasks",
+		ActiveProjects: activeProjects,
+		CurrentView:    "home",
 	}
 
-	today := now.Format("2006-01-02")
-	upcomingEnd := now.AddDate(0, 0, upcomingDays)
-	upcomingEndDate := upcomingEnd.Format("2006-01-02")
-
-	// Load projects/tasks based on selected tab.
-	filteredProjects := make([]models.Project, 0, len(projects))
-	activeProjects := make([]models.Project, 0, len(projects))
-	upcomingTasks := make([]models.Task, 0)
-	somedayTasks := make([]models.Task, 0)
-	for i := range projects {
-		if projects[i].Completed {
-			continue
-		}
-
-		activeProjects = append(activeProjects, projects[i])
-
-		var (
-			tasks []models.Task
-			err   error
-		)
-
-		if showCompleted {
-			tasks, err = h.store.ListTasksByProjectCompletedBetween(ctx, projects[i].ID, &completedStart, &completedEnd, 0)
-		} else if showUpcoming {
-			tasks, err = h.store.ListTasksByProjectFiltered(ctx, projects[i].ID, false, 0)
-		} else if showSomeday {
-			tasks, err = h.store.ListTasksByProjectFiltered(ctx, projects[i].ID, false, 0)
-		} else {
-			tasks, err = h.store.ListTasksByProjectFiltered(ctx, projects[i].ID, false, 3)
-		}
-		if err != nil {
-			respondServerError(w, err)
-			return
-		}
-
-		projects[i].ViewTab = tab
-		for j := range tasks {
-			tasks[j].InlineEdit = true
-		}
-		projects[i].Tasks = tasks
-
-		if showUpcoming {
-			for _, task := range tasks {
-				if task.DueDate == nil {
-					continue
-				}
-				due := task.DueDate.Format("2006-01-02")
-				if due > upcomingEndDate {
-					continue
-				}
-				task.Overdue = due < today
-				task.ProjectName = projects[i].Name
-				task.InlineEdit = true
-				upcomingTasks = append(upcomingTasks, task)
-			}
-			continue
-		}
-
-		if showSomeday {
-			for _, task := range tasks {
-				if task.DueDate != nil {
-					continue
-				}
-				task.ProjectName = projects[i].Name
-				task.InlineEdit = true
-				somedayTasks = append(somedayTasks, task)
-			}
-			continue
-		}
-
-		if !showCompleted || len(tasks) > 0 {
-			filteredProjects = append(filteredProjects, projects[i])
-		}
-	}
-
-	if showUpcoming {
-		sort.Slice(upcomingTasks, func(i, j int) bool {
-			if upcomingTasks[i].Overdue != upcomingTasks[j].Overdue {
-				return upcomingTasks[i].Overdue
-			}
-			leftDue := upcomingTasks[i].DueDate.Format("2006-01-02")
-			rightDue := upcomingTasks[j].DueDate.Format("2006-01-02")
-			if leftDue != rightDue {
-				return leftDue < rightDue
-			}
-			return upcomingTasks[i].PriorityOrder() < upcomingTasks[j].PriorityOrder()
-		})
-	}
-
-	if showSomeday {
-		sort.Slice(somedayTasks, func(i, j int) bool {
-			if somedayTasks[i].PriorityOrder() != somedayTasks[j].PriorityOrder() {
-				return somedayTasks[i].PriorityOrder() < somedayTasks[j].PriorityOrder()
-			}
-			return somedayTasks[i].Description < somedayTasks[j].Description
-		})
-	}
-
-	data := HomeData{
-		Title:              "My Tasks",
-		Tab:                tab,
-		Projects:           filteredProjects,
-		ActiveProjects:     activeProjects,
-		UpcomingTasks:      upcomingTasks,
-		SomedayTasks:       somedayTasks,
-		UpcomingDays:       upcomingDays,
-		CompletedStartDate: completedStart.Format("2006-01-02"),
-		CompletedEndDate:   completedEnd.Format("2006-01-02"),
-	}
-
-	h.renderTemplate(w, "home.html", data)
+	h.renderTemplate(w, "empty.html", data)
 }

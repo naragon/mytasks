@@ -26,11 +26,17 @@ func (h *Handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	status := r.FormValue("status")
+	if status == "" {
+		status = "todo"
+	}
+
 	task := &models.Task{
 		ProjectID:   projectID,
 		Description: r.FormValue("description"),
 		Notes:       r.FormValue("notes"),
 		Priority:    r.FormValue("priority"),
+		Status:      status,
 		DueDate:     parseDate(r.FormValue("due_date")),
 	}
 
@@ -73,10 +79,13 @@ func (h *Handlers) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	task.Priority = r.FormValue("priority")
 	task.DueDate = parseDate(r.FormValue("due_date"))
 
+	if status := r.FormValue("status"); status != "" {
+		task.Status = status
+	}
+
+	// Support legacy completed checkbox — sync to status
 	if r.FormValue("completed") == "true" {
-		task.Completed = true
-	} else {
-		task.Completed = false
+		task.Status = "done"
 	}
 
 	if err := task.Validate(); err != nil {
@@ -135,7 +144,41 @@ func (h *Handlers) ToggleTask(w http.ResponseWriter, r *http.Request) {
 	h.renderPartial(w, "task_item.html", task)
 }
 
+// MoveTask changes a task's status (Kanban column move).
+func (h *Handlers) MoveTask(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	id, err := parseID(r, "id")
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid task id")
+		return
+	}
+
+	var payload struct {
+		Status    string `json:"status"`
+		SortOrder int    `json:"sort_order"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+
+	if payload.Status != "todo" && payload.Status != "in_progress" && payload.Status != "done" {
+		respondError(w, http.StatusBadRequest, "invalid status")
+		return
+	}
+
+	if err := h.store.MoveTaskToStatus(ctx, id, payload.Status, payload.SortOrder); err != nil {
+		respondServerError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 // ReorderTasks updates the order of tasks within a project.
+// Accepts an optional "status" query parameter to scope the reorder.
 func (h *Handlers) ReorderTasks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -154,9 +197,17 @@ func (h *Handlers) ReorderTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.ReorderTasks(ctx, projectID, payload.IDs); err != nil {
-		respondServerError(w, err)
-		return
+	status := r.URL.Query().Get("status")
+	if status != "" {
+		if err := h.store.ReorderTasksInStatus(ctx, projectID, status, payload.IDs); err != nil {
+			respondServerError(w, err)
+			return
+		}
+	} else {
+		if err := h.store.ReorderTasks(ctx, projectID, payload.IDs); err != nil {
+			respondServerError(w, err)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
