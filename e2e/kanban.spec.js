@@ -13,6 +13,16 @@ async function ensureProjectPage(page, projectName) {
   await page.waitForURL(/\/projects\/\d+/);
 }
 
+async function createProjectFromSidebar(page, projectName) {
+  await page.locator('.sidebar button:has-text("+ New")').click();
+  await page.locator('#new-project-form input[name="name"]').fill(projectName);
+  await page.locator('#new-project-form button[type="submit"]').click();
+  await page.waitForURL(/\/projects\/\d+/);
+  const match = page.url().match(/\/projects\/(\d+)/);
+  expect(match).not.toBeNull();
+  return match[1];
+}
+
 test.describe('Home page', () => {
   test('redirects to first project or shows empty state', async ({ page }) => {
     const response = await page.goto('/');
@@ -140,6 +150,44 @@ test.describe('Project creation and Kanban board', () => {
     expect(Math.abs(inProgressBox.y - doneBox.y)).toBeLessThan(20);
     expect(inProgressBox.x).toBeGreaterThan(todoBox.x);
     expect(doneBox.x).toBeGreaterThan(inProgressBox.x);
+  });
+
+  test('setting due date then navigating away and back keeps all kanban columns', async ({ page }) => {
+    await page.goto('/');
+    const suffix = Date.now();
+
+    const firstProjectID = await createProjectFromSidebar(page, `Due Date Source ${suffix}`);
+    const secondProjectID = await createProjectFromSidebar(page, `Due Date Target ${suffix}`);
+
+    await page.locator(`.sidebar a[href="/projects/${firstProjectID}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${firstProjectID}$`));
+
+    await page.locator('.kanban-column[data-status="todo"] button:has-text("+")').click();
+    const todoForm = page.locator('#kanban-form-todo');
+    await expect(todoForm).toBeVisible();
+    await todoForm.locator('input[name="description"]').fill(`Due Date Task ${suffix}`);
+    await todoForm.locator('button[type="submit"]').click();
+
+    const taskCard = page.locator(`.kanban-column[data-status="todo"] .kanban-card:has-text("Due Date Task ${suffix}")`).first();
+    await expect(taskCard).toBeVisible();
+    await taskCard.locator('.kanban-card-description').click();
+
+    const editForm = taskCard.locator('.kanban-card-edit');
+    await expect(editForm).toBeVisible();
+    await editForm.locator('input[name="due_date"]').fill('2030-01-15');
+    await editForm.locator('button[type="submit"]').click();
+    await page.waitForLoadState('networkidle');
+
+    await page.locator(`.sidebar a[href="/projects/${secondProjectID}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${secondProjectID}$`));
+
+    await page.locator(`.sidebar a[href="/projects/${firstProjectID}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${firstProjectID}$`));
+
+    await expect(page.locator('.kanban-column[data-status="todo"]')).toBeVisible();
+    await expect(page.locator('.kanban-column[data-status="in_progress"]')).toBeVisible();
+    await expect(page.locator('.kanban-column[data-status="done"]')).toBeVisible();
+    await expect(page.locator('.kanban-column')).toHaveCount(3);
   });
 });
 

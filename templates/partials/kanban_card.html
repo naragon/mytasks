@@ -11,7 +11,7 @@
     <div class="kanban-card-meta">
         <span class="priority-badge priority-{{.Task.Priority}}">{{.Task.Priority}}</span>
         {{if .Task.DueDate}}
-        <span class="due-date {{if .Task.IsOverdue}}overdue{{end}}">{{.Task.DueDate.Format "Jan 2"}}</span>
+        <span class="due-date {{if .Task.Overdue}}overdue{{end}}">{{.Task.DueDate.Format "Jan 2"}}</span>
         {{end}}
     </div>
     {{if .Task.Notes}}
