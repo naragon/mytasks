@@ -1,6 +1,18 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
+async function ensureProjectPage(page, projectName) {
+  await page.goto('/');
+  if (page.url().includes('/projects/')) {
+    return;
+  }
+
+  await page.locator('.sidebar button:has-text("+ New")').click();
+  await page.locator('#new-project-form input[name="name"]').fill(projectName);
+  await page.locator('#new-project-form button[type="submit"]').click();
+  await page.waitForURL(/\/projects\/\d+/);
+}
+
 test.describe('Home page', () => {
   test('redirects to first project or shows empty state', async ({ page }) => {
     const response = await page.goto('/');
@@ -32,9 +44,61 @@ test.describe('Sidebar', () => {
     await expect(page.locator('.sidebar a[href="/upcoming"]')).toBeVisible();
     await expect(page.locator('.sidebar a[href="/archive"]')).toBeVisible();
   });
+
+  test('sidebar can collapse and expand', async ({ page }) => {
+    await page.goto('/');
+
+    const layout = page.locator('.app-layout').first();
+    const sidebar = page.locator('.sidebar').first();
+    const toggle = page.locator('[data-action="toggle-sidebar"]').first();
+
+    const expandedBox = await sidebar.boundingBox();
+    expect(expandedBox).not.toBeNull();
+
+    await toggle.click();
+    await expect(layout).toHaveClass(/sidebar-collapsed/);
+
+    const collapsedBox = await sidebar.boundingBox();
+    expect(collapsedBox).not.toBeNull();
+    expect(collapsedBox.width).toBeLessThan(expandedBox.width);
+
+    await toggle.click();
+    await expect(layout).not.toHaveClass(/sidebar-collapsed/);
+  });
+
+  test('sidebar can be resized', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.goto('/');
+
+    const sidebar = page.locator('.sidebar').first();
+    const initialBox = await sidebar.boundingBox();
+    expect(initialBox).not.toBeNull();
+
+    const widenButton = page.locator('[data-action="widen-sidebar"]').first();
+    await widenButton.click();
+    await widenButton.click();
+    await widenButton.click();
+
+    const resizedBox = await sidebar.boundingBox();
+    expect(resizedBox).not.toBeNull();
+    expect(resizedBox.width).toBeGreaterThan(initialBox.width + 40);
+
+    const storedWidth = await page.evaluate(() => localStorage.getItem('mytasks.sidebar.width'));
+    expect(storedWidth).not.toBeNull();
+  });
 });
 
 test.describe('Project creation and Kanban board', () => {
+  test('new project button opens form without javascript errors', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+
+    await page.goto('/');
+    await page.locator('.sidebar button:has-text("+ New")').click();
+    await expect(page.locator('#new-project-form')).toBeVisible();
+    expect(pageErrors).not.toContain(expect.stringContaining('showProjectForm is not defined'));
+  });
+
   test('can create a project and see kanban board', async ({ page }) => {
     await page.goto('/');
 
@@ -58,6 +122,24 @@ test.describe('Project creation and Kanban board', () => {
       await expect(page.locator('.kanban-column[data-status="in_progress"]')).toBeVisible();
       await expect(page.locator('.kanban-column[data-status="done"]')).toBeVisible();
     }
+  });
+
+  test('kanban columns render side by side on desktop', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await ensureProjectPage(page, 'Kanban Layout Project');
+
+    const todoBox = await page.locator('.kanban-column[data-status="todo"]').boundingBox();
+    const inProgressBox = await page.locator('.kanban-column[data-status="in_progress"]').boundingBox();
+    const doneBox = await page.locator('.kanban-column[data-status="done"]').boundingBox();
+
+    expect(todoBox).not.toBeNull();
+    expect(inProgressBox).not.toBeNull();
+    expect(doneBox).not.toBeNull();
+
+    expect(Math.abs(todoBox.y - inProgressBox.y)).toBeLessThan(20);
+    expect(Math.abs(inProgressBox.y - doneBox.y)).toBeLessThan(20);
+    expect(inProgressBox.x).toBeGreaterThan(todoBox.x);
+    expect(doneBox.x).toBeGreaterThan(inProgressBox.x);
   });
 });
 
@@ -85,6 +167,11 @@ test.describe('Task creation', () => {
 
     // Task should appear in todo column
     await expect(page.locator('.kanban-column[data-status="todo"] .kanban-card:has-text("My E2E Test Task")').first()).toBeVisible();
+
+    // All three columns should remain visible after task creation
+    await expect(page.locator('.kanban-column[data-status="todo"]')).toBeVisible();
+    await expect(page.locator('.kanban-column[data-status="in_progress"]')).toBeVisible();
+    await expect(page.locator('.kanban-column[data-status="done"]')).toBeVisible();
   });
 });
 

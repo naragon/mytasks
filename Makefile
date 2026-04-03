@@ -1,4 +1,4 @@
-.PHONY: build test run clean docker-build docker-run
+.PHONY: build test run clean clean-data clean-all docker-build docker-run
 
 # Binary name
 BINARY=mytasks
@@ -28,7 +28,13 @@ run-dev:
 clean:
 	rm -f $(BINARY)
 	rm -f coverage.out coverage.html
+
+# Clean local database files
+clean-data:
 	rm -rf ./data
+
+# Clean build artifacts and local databases
+clean-all: clean clean-data
 
 # Format code
 fmt:

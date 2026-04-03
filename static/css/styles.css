@@ -57,10 +57,15 @@ a:hover {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    position: relative;
 }
 
 .sidebar-header {
-    padding: 1rem 1rem 0.5rem;
+    padding: 1rem 0.75rem 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .sidebar-title {
@@ -71,6 +76,43 @@ a:hover {
 .sidebar-title a {
     color: var(--color-text);
     text-decoration: none;
+}
+
+.sidebar-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.sidebar-resize-btn,
+.sidebar-toggle {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border-radius: 999px;
+    color: var(--color-text-muted);
+}
+
+.sidebar-resize-btn:hover,
+.sidebar-toggle:hover {
+    background: var(--color-bg);
+}
+
+.sidebar-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 5;
+    touch-action: none;
+}
+
+.sidebar-resizer:hover,
+body.resizing-sidebar .sidebar-resizer {
+    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 .sidebar-nav {
@@ -146,6 +188,24 @@ a:hover {
 .sidebar-item-date.overdue {
     color: var(--color-danger);
     font-weight: 500;
+}
+
+.app-layout.sidebar-collapsed .sidebar {
+    width: 56px;
+}
+
+.app-layout.sidebar-collapsed .sidebar-title,
+.app-layout.sidebar-collapsed .sidebar-nav {
+    display: none;
+}
+
+.app-layout.sidebar-collapsed .sidebar-resize-btn {
+    display: none;
+}
+
+.app-layout.sidebar-collapsed .sidebar-header {
+    padding: 0.75rem 0;
+    justify-content: center;
 }
 
 /* ========= Main Content ========= */
@@ -343,11 +403,12 @@ a:hover {
     gap: 1rem;
     height: calc(100vh - 200px);
     min-height: 400px;
+    overflow-x: auto;
 }
 
 .kanban-column {
-    flex: 1;
-    min-width: 220px;
+    flex: 1 0 260px;
+    min-width: 260px;
     background: var(--color-bg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius);
@@ -369,6 +430,22 @@ a:hover {
     margin: 0;
     font-size: 0.875rem;
     font-weight: 600;
+}
+
+.column-subtitle {
+    font-size: 0.7em;
+    font-weight: normal;
+    color: var(--color-text-muted);
+}
+
+.archive-active-badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-primary, #4a90e2);
+    background: color-mix(in srgb, var(--color-primary, #4a90e2) 12%, transparent);
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+    white-space: nowrap;
 }
 
 .kanban-count {
@@ -787,12 +864,12 @@ a:hover {
 /* ========= Responsive ========= */
 @media (max-width: 900px) {
     .sidebar {
-        width: 200px;
+        width: min(var(--sidebar-width), 240px);
     }
 
     .kanban-board {
-        flex-direction: column;
         height: auto;
+        min-height: 280px;
     }
 
     .kanban-column {
@@ -811,6 +888,11 @@ a:hover {
         max-height: 50vh;
         border-right: none;
         border-bottom: 1px solid var(--color-border);
+    }
+
+    .sidebar-resizer,
+    .sidebar-toggle {
+        display: none;
     }
 
     .main-content {

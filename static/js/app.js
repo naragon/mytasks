@@ -2,12 +2,153 @@
 document.addEventListener('DOMContentLoaded', function() {
     initializeKanban();
     initializeSidebarSortable();
+    initializeSidebarControls();
+    initializeFormTriggers();
 });
 
 // Re-initialize after htmx swaps
 document.addEventListener('htmx:afterSwap', function() {
     initializeKanban();
+    initializeSidebarControls();
+    initializeFormTriggers();
 });
+
+const sidebarWidthStorageKey = 'mytasks.sidebar.width';
+const sidebarCollapsedStorageKey = 'mytasks.sidebar.collapsed';
+const sidebarMinWidth = 200;
+const sidebarMaxWidth = 460;
+
+function initializeSidebarControls() {
+    const layout = document.querySelector('.app-layout');
+    const sidebar = document.querySelector('.sidebar');
+    if (!layout || !sidebar) return;
+
+    applyStoredSidebarState(layout);
+    bindSidebarToggle(layout);
+    bindSidebarStepResize(layout);
+    bindSidebarResizer(layout, sidebar);
+    updateSidebarToggleUI(layout);
+}
+
+function bindSidebarToggle(layout) {
+    document.querySelectorAll('[data-action="toggle-sidebar"]').forEach(function(button) {
+        if (button.dataset.bound === '1') return;
+        button.dataset.bound = '1';
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            setSidebarCollapsed(layout, !layout.classList.contains('sidebar-collapsed'));
+        });
+    });
+}
+
+function bindSidebarResizer(layout, sidebar) {
+    const resizer = sidebar.querySelector('[data-action="resize-sidebar"]');
+    if (!resizer || resizer.dataset.bound === '1') return;
+
+    resizer.dataset.bound = '1';
+    resizer.addEventListener('mousedown', function(event) {
+        if (window.matchMedia('(max-width: 600px)').matches) return;
+
+        event.preventDefault();
+        setSidebarCollapsed(layout, false);
+        document.body.classList.add('resizing-sidebar');
+
+        const onMouseMove = function(moveEvent) {
+            const sidebarLeft = sidebar.getBoundingClientRect().left;
+            const newWidth = moveEvent.clientX - sidebarLeft;
+            setSidebarWidth(newWidth);
+        };
+
+        const onMouseUp = function() {
+            document.body.classList.remove('resizing-sidebar');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+}
+
+function bindSidebarStepResize(layout) {
+    const step = 24;
+
+    document.querySelectorAll('[data-action="widen-sidebar"], [data-action="narrow-sidebar"]').forEach(function(button) {
+        if (button.dataset.bound === '1') return;
+        button.dataset.bound = '1';
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            setSidebarCollapsed(layout, false);
+
+            const direction = button.getAttribute('data-action') === 'widen-sidebar' ? 1 : -1;
+            const currentWidth = getCurrentSidebarWidth();
+            setSidebarWidth(currentWidth + (direction * step));
+        });
+    });
+}
+
+function applyStoredSidebarState(layout) {
+    try {
+        const savedWidth = parseInt(localStorage.getItem(sidebarWidthStorageKey), 10);
+        if (!isNaN(savedWidth)) {
+            setSidebarWidth(savedWidth, false);
+        }
+
+        const isCollapsed = localStorage.getItem(sidebarCollapsedStorageKey) === '1';
+        layout.classList.toggle('sidebar-collapsed', isCollapsed);
+    } catch (_error) {
+        // Ignore storage failures.
+    }
+}
+
+function setSidebarCollapsed(layout, collapsed) {
+    layout.classList.toggle('sidebar-collapsed', collapsed);
+    updateSidebarToggleUI(layout);
+
+    try {
+        localStorage.setItem(sidebarCollapsedStorageKey, collapsed ? '1' : '0');
+    } catch (_error) {
+        // Ignore storage failures.
+    }
+}
+
+function setSidebarWidth(width, persist) {
+    const clamped = Math.max(sidebarMinWidth, Math.min(sidebarMaxWidth, Math.round(width)));
+    document.documentElement.style.setProperty('--sidebar-width', clamped + 'px');
+
+    if (persist === false) return;
+
+    try {
+        localStorage.setItem(sidebarWidthStorageKey, String(clamped));
+    } catch (_error) {
+        // Ignore storage failures.
+    }
+}
+
+function getCurrentSidebarWidth() {
+    const fromVariable = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10);
+    if (!isNaN(fromVariable)) {
+        return fromVariable;
+    }
+
+    const sidebar = document.querySelector('.sidebar');
+    if (!sidebar) {
+        return sidebarMinWidth;
+    }
+
+    return Math.round(sidebar.getBoundingClientRect().width);
+}
+
+function updateSidebarToggleUI(layout) {
+    const collapsed = layout.classList.contains('sidebar-collapsed');
+
+    document.querySelectorAll('[data-action="toggle-sidebar"]').forEach(function(button) {
+        button.textContent = collapsed ? '›' : '‹';
+        button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        button.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
+        button.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
+    });
+}
 
 function initializeKanban() {
     const kanbanPage = document.querySelector('.kanban-page');
@@ -107,6 +248,19 @@ function initializeSidebarSortable() {
     }
 }
 
+function initializeFormTriggers() {
+    document.querySelectorAll('[data-action="show-project-form"], button[onclick*="showProjectForm"]').forEach(function(button) {
+        if (button.dataset.bound === '1') return;
+        button.dataset.bound = '1';
+        // Backward-compat: strip legacy inline handlers that call showProjectForm().
+        button.removeAttribute('onclick');
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            showProjectForm();
+        });
+    });
+}
+
 // Form visibility functions
 function showProjectForm() {
     var form = document.getElementById('new-project-form');
@@ -169,6 +323,13 @@ function hideForm(button) {
         if (form) form.reset();
     }
 }
+
+// Expose handlers for inline onclick attributes used by templates.
+window.showProjectForm = showProjectForm;
+window.showEditProjectForm = showEditProjectForm;
+window.showKanbanTaskForm = showKanbanTaskForm;
+window.toggleKanbanCardEdit = toggleKanbanCardEdit;
+window.hideForm = hideForm;
 
 // Handle HX-Redirect responses
 document.addEventListener('htmx:beforeSwap', function(event) {

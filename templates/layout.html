@@ -12,12 +12,17 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h1 class="sidebar-title"><a href="/">My Tasks</a></h1>
+                <div class="sidebar-controls">
+                    <button type="button" class="btn btn-sm btn-link sidebar-resize-btn" data-action="narrow-sidebar" aria-label="Narrow navigation" title="Narrow navigation">−</button>
+                    <button type="button" class="btn btn-sm btn-link sidebar-resize-btn" data-action="widen-sidebar" aria-label="Widen navigation" title="Widen navigation">+</button>
+                    <button type="button" class="btn btn-sm btn-link sidebar-toggle" data-action="toggle-sidebar" aria-label="Collapse navigation" title="Collapse navigation">‹</button>
+                </div>
             </div>
             <nav class="sidebar-nav">
                 <div class="sidebar-section">
                     <div class="sidebar-section-header">
                         <span>Projects</span>
-                        <button class="btn btn-sm btn-link" onclick="showProjectForm()">+ New</button>
+                        <button type="button" class="btn btn-sm btn-link" data-action="show-project-form">+ New</button>
                     </div>
                     <div id="new-project-form" class="form-container hidden" style="padding: 0.5rem;">
                         {{template "project_form.html" (dict)}}
@@ -47,6 +52,7 @@
                     </ul>
                 </div>
             </nav>
+            <div class="sidebar-resizer" data-action="resize-sidebar" role="separator" aria-orientation="vertical" aria-label="Resize navigation"></div>
         </aside>
         <main class="main-content">
             {{template "content" .}}
