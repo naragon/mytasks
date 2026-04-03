@@ -60,7 +60,7 @@
                     </div>
                     <div class="kanban-cards" data-status="todo">
                         {{range .TodoTasks}}
-                        {{template "kanban_card.html" .}}
+                        {{template "kanban_card.html" (dict "Task" . "ActiveProjects" $.ActiveProjects)}}
                         {{end}}
                     </div>
                 </div>
@@ -76,19 +76,19 @@
                     </div>
                     <div class="kanban-cards" data-status="in_progress">
                         {{range .InProgressTasks}}
-                        {{template "kanban_card.html" .}}
+                        {{template "kanban_card.html" (dict "Task" . "ActiveProjects" $.ActiveProjects)}}
                         {{end}}
                     </div>
                 </div>
 
                 <div class="kanban-column" data-status="done">
                     <div class="kanban-column-header">
-                        <h3>Done</h3>
+                        <h3>Done <span class="column-subtitle">last 7 days</span></h3>
                         <span class="kanban-count">{{len .DoneTasks}}</span>
                     </div>
                     <div class="kanban-cards" data-status="done">
                         {{range .DoneTasks}}
-                        {{template "kanban_card.html" .}}
+                        {{template "kanban_card.html" (dict "Task" . "ActiveProjects" $.ActiveProjects)}}
                         {{end}}
                     </div>
                 </div>

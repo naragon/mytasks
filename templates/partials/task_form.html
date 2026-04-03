@@ -36,6 +36,16 @@
         <label for="task-due-date-{{.Task.ID}}">Due Date</label>
         <input type="date" id="task-due-date-{{.Task.ID}}" name="due_date" {{if .Task.DueDate}}value="{{.Task.DueDate.Format "2006-01-02"}}"{{end}}>
     </div>
+    {{if .ActiveProjects}}
+    <div class="form-group">
+        <label for="task-project-{{.Task.ID}}">Project</label>
+        <select id="task-project-{{.Task.ID}}" name="project_id">
+            {{range .ActiveProjects}}
+            <option value="{{.ID}}" {{if eq .ID $.Task.ProjectID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+    </div>
+    {{end}}
     <div class="form-actions">
         <button type="button" class="btn btn-secondary" onclick="toggleKanbanCardEdit({{.Task.ID}})">Cancel</button>
         <button type="submit" class="btn btn-primary">Update</button>

@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"mytasks/internal/models"
 )
+
+const donePruneWindowDays = 7
 
 // KanbanData holds data for the Kanban board template.
 type KanbanData struct {
@@ -43,7 +46,8 @@ func (h *Handlers) KanbanBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	doneTasks, err := h.store.ListTasksByProjectAndStatus(ctx, id, "done")
+	since := time.Now().AddDate(0, 0, -donePruneWindowDays)
+	doneTasks, err := h.store.ListRecentDoneTasks(ctx, id, since)
 	if err != nil {
 		respondServerError(w, err)
 		return

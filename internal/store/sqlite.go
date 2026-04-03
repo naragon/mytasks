@@ -61,6 +61,11 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	return store, nil
 }
 
+// DB returns the underlying *sql.DB, intended for use in tests.
+func (s *SQLiteStore) DB() *sql.DB {
+	return s.db
+}
+
 func (s *SQLiteStore) migrate() error {
 	return runMigrations(s.db)
 }
@@ -663,9 +668,9 @@ func (s *SQLiteStore) UpdateTask(ctx context.Context, task *models.Task) error {
 
 	_, err = s.db.ExecContext(ctx, `
 		UPDATE tasks
-		SET description = ?, notes = ?, priority = ?, status = ?, due_date = ?, completed = ?, completed_at = ?, sort_order = ?, updated_at = ?
+		SET description = ?, notes = ?, priority = ?, status = ?, due_date = ?, completed = ?, completed_at = ?, project_id = ?, sort_order = ?, updated_at = ?
 		WHERE id = ?
-	`, task.Description, task.Notes, task.Priority, task.Status, dueDate, task.Completed, completedAt, task.SortOrder, task.UpdatedAt, task.ID)
+	`, task.Description, task.Notes, task.Priority, task.Status, dueDate, task.Completed, completedAt, task.ProjectID, task.SortOrder, task.UpdatedAt, task.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
 	}
@@ -867,6 +872,163 @@ func (s *SQLiteStore) ListTasksByProjectAndStatus(ctx context.Context, projectID
 	}
 
 	return tasks, rows.Err()
+}
+
+// ListRecentDoneTasks retrieves done tasks completed on or after the given time (for the Kanban Done column).
+// Tasks with NULL completed_at are included as a fallback for legacy data.
+func (s *SQLiteStore) ListRecentDoneTasks(ctx context.Context, projectID int64, since time.Time) ([]models.Task, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM tasks
+		WHERE project_id = ?
+		  AND status = 'done'
+		  AND (completed_at >= ? OR completed_at IS NULL)
+		ORDER BY completed_at DESC, sort_order ASC
+	`, projectID, since.Format("2006-01-02"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list recent done tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		var dueDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&task.ID, &task.ProjectID, &task.Description, &task.Notes, &task.Priority, &task.Status,
+			&dueDate, &task.Completed, &completedAt, &task.SortOrder, &task.CreatedAt, &task.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task: %w", err)
+		}
+		if dueDate.Valid {
+			if parsedDate, err := parseSQLiteDate(dueDate.String); err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			} else {
+				task.DueDate = parsedDate
+			}
+		}
+		if completedAt.Valid {
+			if parsedDate, err := parseSQLiteDate(completedAt.String); err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			} else {
+				task.CompletedAt = parsedDate
+			}
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, rows.Err()
+}
+
+// ListOldDoneTasks retrieves done tasks completed before the given time (for the Archive view).
+// Falls back to updated_at for tasks with NULL completed_at.
+func (s *SQLiteStore) ListOldDoneTasks(ctx context.Context, projectID int64, before time.Time) ([]models.Task, error) {
+	beforeStr := before.Format("2006-01-02")
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM tasks
+		WHERE project_id = ?
+		  AND status = 'done'
+		  AND (
+		      (completed_at IS NOT NULL AND completed_at < ?)
+		      OR (completed_at IS NULL AND updated_at < ?)
+		  )
+		ORDER BY completed_at DESC, sort_order ASC
+	`, projectID, beforeStr, beforeStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list old done tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		var dueDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&task.ID, &task.ProjectID, &task.Description, &task.Notes, &task.Priority, &task.Status,
+			&dueDate, &task.Completed, &completedAt, &task.SortOrder, &task.CreatedAt, &task.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task: %w", err)
+		}
+		if dueDate.Valid {
+			if parsedDate, err := parseSQLiteDate(dueDate.String); err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			} else {
+				task.DueDate = parsedDate
+			}
+		}
+		if completedAt.Valid {
+			if parsedDate, err := parseSQLiteDate(completedAt.String); err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			} else {
+				task.CompletedAt = parsedDate
+			}
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, rows.Err()
+}
+
+// ListActiveProjectsWithOldDoneTasks returns active projects that have at least one done task
+// completed before the given time (used to populate the Archive view for ongoing projects).
+func (s *SQLiteStore) ListActiveProjectsWithOldDoneTasks(ctx context.Context, before time.Time) ([]models.Project, error) {
+	beforeStr := before.Format("2006-01-02")
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, description, type, target_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM projects
+		WHERE completed = FALSE
+		  AND EXISTS (
+		      SELECT 1 FROM tasks
+		      WHERE tasks.project_id = projects.id
+		        AND tasks.status = 'done'
+		        AND (
+		            (tasks.completed_at IS NOT NULL AND tasks.completed_at < ?)
+		            OR (tasks.completed_at IS NULL AND tasks.updated_at < ?)
+		        )
+		  )
+		ORDER BY sort_order ASC
+	`, beforeStr, beforeStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active projects with old done tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []models.Project
+	for rows.Next() {
+		var project models.Project
+		var targetDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&project.ID, &project.Name, &project.Description, &project.Type,
+			&targetDate, &project.Completed, &completedAt, &project.SortOrder,
+			&project.CreatedAt, &project.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan project: %w", err)
+		}
+		if targetDate.Valid {
+			if parsedDate, err := parseSQLiteDate(targetDate.String); err != nil {
+				return nil, fmt.Errorf("failed to parse project target_date: %w", err)
+			} else {
+				project.TargetDate = parsedDate
+			}
+		}
+		if completedAt.Valid {
+			if parsedDate, err := parseSQLiteDate(completedAt.String); err != nil {
+				return nil, fmt.Errorf("failed to parse project completed_at: %w", err)
+			} else {
+				project.CompletedAt = parsedDate
+			}
+		}
+		projects = append(projects, project)
+	}
+	return projects, rows.Err()
 }
 
 // ListUpcomingTasks retrieves non-done tasks with due dates within the given number of days across all active projects.

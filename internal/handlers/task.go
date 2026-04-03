@@ -88,6 +88,23 @@ func (h *Handlers) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		task.Status = "done"
 	}
 
+	// Move to another project if project_id supplied and differs from current.
+	if rawProjectID := r.FormValue("project_id"); rawProjectID != "" {
+		destID, err := strconv.ParseInt(rawProjectID, 10, 64)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid project_id")
+			return
+		}
+		if destID != task.ProjectID {
+			dest, err := h.store.GetProject(ctx, destID)
+			if err != nil || dest.Completed {
+				respondError(w, http.StatusBadRequest, "invalid destination project")
+				return
+			}
+			task.ProjectID = destID
+		}
+	}
+
 	if err := task.Validate(); err != nil {
 		respondError(w, http.StatusBadRequest, err.Error())
 		return

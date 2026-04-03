@@ -28,6 +28,9 @@ type Store interface {
 	ListTasksByProjectFiltered(ctx context.Context, projectID int64, completed bool, limit int) ([]models.Task, error)
 	ListTasksByProjectCompletedBetween(ctx context.Context, projectID int64, from, to *time.Time, limit int) ([]models.Task, error)
 	ListTasksByProjectAndStatus(ctx context.Context, projectID int64, status string) ([]models.Task, error)
+	ListRecentDoneTasks(ctx context.Context, projectID int64, since time.Time) ([]models.Task, error)
+	ListOldDoneTasks(ctx context.Context, projectID int64, before time.Time) ([]models.Task, error)
+	ListActiveProjectsWithOldDoneTasks(ctx context.Context, before time.Time) ([]models.Project, error)
 	ListUpcomingTasks(ctx context.Context, days int) ([]models.Task, error)
 	UpdateTask(ctx context.Context, task *models.Task) error
 	DeleteTask(ctx context.Context, id int64) error

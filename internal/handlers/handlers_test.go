@@ -9,8 +9,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -35,6 +37,7 @@ func setupTestHandlersWithTemplates(t *testing.T) (*Handlers, *store.SQLiteStore
 	h, s := setupTestHandlers(t)
 
 	funcMap := template.FuncMap{
+		"add": func(a, b int) int { return a + b },
 		"dict": func(values ...interface{}) map[string]interface{} {
 			if len(values)%2 != 0 {
 				return nil
@@ -640,5 +643,137 @@ func TestMoveTaskHandler_ToDone(t *testing.T) {
 	}
 	if updated.CompletedAt == nil {
 		t.Fatal("expected completed_at to be set")
+	}
+}
+
+func TestArchiveHandler_IncludesActiveProjectWithOldDoneTasks(t *testing.T) {
+	_, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	// Active project with a done task completed 10 days ago — should appear in archive.
+	oldProject := &models.Project{Name: "Admin", Type: "project"}
+	if err := s.CreateProject(ctx, oldProject); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	oldTask := &models.Task{ProjectID: oldProject.ID, Description: "Old work", Priority: "medium", Status: "todo"}
+	if err := s.CreateTask(ctx, oldTask); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, oldTask.ID, "done", 0); err != nil {
+		t.Fatalf("MoveTaskToStatus: %v", err)
+	}
+	oldDate := time.Now().AddDate(0, 0, -10).Format("2006-01-02")
+	if _, err := s.DB().ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, oldDate, oldTask.ID); err != nil {
+		t.Fatalf("set completed_at: %v", err)
+	}
+
+	// Active project with only a recent done task — should NOT appear.
+	recentProject := &models.Project{Name: "Sprint", Type: "project"}
+	if err := s.CreateProject(ctx, recentProject); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	recentTask := &models.Task{ProjectID: recentProject.ID, Description: "Recent work", Priority: "low", Status: "todo"}
+	if err := s.CreateTask(ctx, recentTask); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, recentTask.ID, "done", 0); err != nil {
+		t.Fatalf("MoveTaskToStatus: %v", err)
+	}
+	// completed_at defaults to today, so no override needed.
+
+	before := time.Now().AddDate(0, 0, -donePruneWindowDays)
+	projects, err := s.ListActiveProjectsWithOldDoneTasks(ctx, before)
+	if err != nil {
+		t.Fatalf("ListActiveProjectsWithOldDoneTasks: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 active project with old done tasks, got %d", len(projects))
+	}
+	if projects[0].ID != oldProject.ID {
+		t.Errorf("expected project %d (%s), got %d (%s)", oldProject.ID, oldProject.Name, projects[0].ID, projects[0].Name)
+	}
+}
+
+func TestUpdateTaskHandler_MovesToAnotherProject(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	p1 := &models.Project{Name: "Source", Type: "project"}
+	p2 := &models.Project{Name: "Dest", Type: "project"}
+	if err := s.CreateProject(ctx, p1); err != nil {
+		t.Fatalf("CreateProject p1: %v", err)
+	}
+	if err := s.CreateProject(ctx, p2); err != nil {
+		t.Fatalf("CreateProject p2: %v", err)
+	}
+	task := &models.Task{ProjectID: p1.ID, Description: "Moveable", Priority: "medium", Status: "todo"}
+	if err := s.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	form := url.Values{
+		"description": {"Moveable"},
+		"priority":    {"medium"},
+		"status":      {"todo"},
+		"project_id":  {strconv.FormatInt(p2.ID, 10)},
+	}
+	req := httptest.NewRequest("PUT", "/api/tasks/"+strconv.FormatInt(task.ID, 10), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", strconv.FormatInt(task.ID, 10))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdateTask(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	updated, _ := s.GetTask(ctx, task.ID)
+	if updated.ProjectID != p2.ID {
+		t.Errorf("expected ProjectID %d, got %d", p2.ID, updated.ProjectID)
+	}
+}
+
+func TestUpdateTaskHandler_RejectsCompletedProject(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	active := &models.Project{Name: "Active", Type: "project"}
+	completed := &models.Project{Name: "Completed", Type: "project"}
+	if err := s.CreateProject(ctx, active); err != nil {
+		t.Fatalf("CreateProject active: %v", err)
+	}
+	if err := s.CreateProject(ctx, completed); err != nil {
+		t.Fatalf("CreateProject completed: %v", err)
+	}
+	if err := s.MarkProjectComplete(ctx, completed.ID); err != nil {
+		t.Fatalf("MarkProjectComplete: %v", err)
+	}
+	task := &models.Task{ProjectID: active.ID, Description: "Task", Priority: "medium", Status: "todo"}
+	if err := s.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	form := url.Values{
+		"description": {"Task"},
+		"priority":    {"medium"},
+		"status":      {"todo"},
+		"project_id":  {strconv.FormatInt(completed.ID, 10)},
+	}
+	req := httptest.NewRequest("PUT", "/api/tasks/"+strconv.FormatInt(task.ID, 10), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", strconv.FormatInt(task.ID, 10))
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdateTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
 	}
 }

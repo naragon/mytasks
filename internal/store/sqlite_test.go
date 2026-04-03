@@ -703,3 +703,179 @@ func TestNewSQLiteStore_MigratesLegacyDatabaseAndPreservesData(t *testing.T) {
 		t.Fatalf("expected db file to exist: %v", err)
 	}
 }
+
+// helper: create a project and a done task, then set completed_at to a specific date.
+func setupDoneTask(t *testing.T, s *SQLiteStore, ctx context.Context, projectName, taskDesc string, completedAt time.Time) (int64, int64) {
+	t.Helper()
+	p := &models.Project{Name: projectName, Type: "project"}
+	if err := s.CreateProject(ctx, p); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	task := &models.Task{ProjectID: p.ID, Description: taskDesc, Priority: "medium", Status: "todo"}
+	if err := s.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, task.ID, "done", 0); err != nil {
+		t.Fatalf("MoveTaskToStatus: %v", err)
+	}
+	// Override completed_at to the desired date.
+	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`,
+		completedAt.Format("2006-01-02"), task.ID); err != nil {
+		t.Fatalf("set completed_at: %v", err)
+	}
+	return p.ID, task.ID
+}
+
+func TestListRecentDoneTasks(t *testing.T) {
+	s := setupTestDB(t)
+	ctx := context.Background()
+
+	since := time.Now().AddDate(0, 0, -7)
+	recentDate := time.Now().AddDate(0, 0, -2)  // 2 days ago — within window
+	oldDate := time.Now().AddDate(0, 0, -10)     // 10 days ago — outside window
+
+	projectID, _ := setupDoneTask(t, s, ctx, "P1", "Recent task", recentDate)
+	setupDoneTask(t, s, ctx, "P1-old", "Old task", oldDate)
+	// Also add the old task to the same project so we can test filtering within one project.
+	task2 := &models.Task{ProjectID: projectID, Description: "Old task same project", Priority: "low", Status: "todo"}
+	if err := s.CreateTask(ctx, task2); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, task2.ID, "done", 1); err != nil {
+		t.Fatalf("MoveTaskToStatus: %v", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`,
+		oldDate.Format("2006-01-02"), task2.ID); err != nil {
+		t.Fatalf("set completed_at: %v", err)
+	}
+
+	tasks, err := s.ListRecentDoneTasks(ctx, projectID, since)
+	if err != nil {
+		t.Fatalf("ListRecentDoneTasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 recent done task, got %d", len(tasks))
+	}
+	if tasks[0].Description != "Recent task" {
+		t.Errorf("expected 'Recent task', got %q", tasks[0].Description)
+	}
+}
+
+func TestListOldDoneTasks(t *testing.T) {
+	s := setupTestDB(t)
+	ctx := context.Background()
+
+	before := time.Now().AddDate(0, 0, -7)
+	recentDate := time.Now().AddDate(0, 0, -2)
+	oldDate := time.Now().AddDate(0, 0, -10)
+
+	projectID, _ := setupDoneTask(t, s, ctx, "P1", "Recent task", recentDate)
+	task2 := &models.Task{ProjectID: projectID, Description: "Old task", Priority: "low", Status: "todo"}
+	if err := s.CreateTask(ctx, task2); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, task2.ID, "done", 1); err != nil {
+		t.Fatalf("MoveTaskToStatus: %v", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`,
+		oldDate.Format("2006-01-02"), task2.ID); err != nil {
+		t.Fatalf("set completed_at: %v", err)
+	}
+
+	tasks, err := s.ListOldDoneTasks(ctx, projectID, before)
+	if err != nil {
+		t.Fatalf("ListOldDoneTasks: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 old done task, got %d", len(tasks))
+	}
+	if tasks[0].Description != "Old task" {
+		t.Errorf("expected 'Old task', got %q", tasks[0].Description)
+	}
+}
+
+func TestListActiveProjectsWithOldDoneTasks(t *testing.T) {
+	s := setupTestDB(t)
+	ctx := context.Background()
+
+	before := time.Now().AddDate(0, 0, -7)
+	recentDate := time.Now().AddDate(0, 0, -2)
+	oldDate := time.Now().AddDate(0, 0, -10)
+
+	// Project with only a recent done task — should NOT appear.
+	recentProjectID, _ := setupDoneTask(t, s, ctx, "Recent Project", "Recent task", recentDate)
+
+	// Project with an old done task — should appear.
+	oldProjectID, _ := setupDoneTask(t, s, ctx, "Old Project", "Old task", oldDate)
+
+	// Completed project with old done task — should NOT appear (not active).
+	completedProjectID, _ := setupDoneTask(t, s, ctx, "Completed Project", "Old task", oldDate)
+	if err := s.MarkProjectComplete(ctx, completedProjectID); err != nil {
+		t.Fatalf("MarkProjectComplete: %v", err)
+	}
+
+	_ = recentProjectID
+
+	projects, err := s.ListActiveProjectsWithOldDoneTasks(ctx, before)
+	if err != nil {
+		t.Fatalf("ListActiveProjectsWithOldDoneTasks: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(projects))
+	}
+	if projects[0].ID != oldProjectID {
+		t.Errorf("expected project ID %d, got %d", oldProjectID, projects[0].ID)
+	}
+}
+
+func TestUpdateTask_ChangesProjectID(t *testing.T) {
+	s := setupTestDB(t)
+	ctx := context.Background()
+
+	p1 := &models.Project{Name: "Project 1", Type: "project"}
+	p2 := &models.Project{Name: "Project 2", Type: "project"}
+	if err := s.CreateProject(ctx, p1); err != nil {
+		t.Fatalf("CreateProject p1: %v", err)
+	}
+	if err := s.CreateProject(ctx, p2); err != nil {
+		t.Fatalf("CreateProject p2: %v", err)
+	}
+
+	task := &models.Task{ProjectID: p1.ID, Description: "Move me", Priority: "medium", Status: "in_progress"}
+	if err := s.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	// Move to p2.
+	task.ProjectID = p2.ID
+	if err := s.UpdateTask(ctx, task); err != nil {
+		t.Fatalf("UpdateTask: %v", err)
+	}
+
+	// GetTask should reflect new project.
+	updated, err := s.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if updated.ProjectID != p2.ID {
+		t.Errorf("expected ProjectID %d, got %d", p2.ID, updated.ProjectID)
+	}
+
+	// Task should no longer appear under p1.
+	p1Tasks, err := s.ListTasksByProjectAndStatus(ctx, p1.ID, "in_progress")
+	if err != nil {
+		t.Fatalf("ListTasksByProjectAndStatus p1: %v", err)
+	}
+	if len(p1Tasks) != 0 {
+		t.Errorf("expected 0 tasks in p1, got %d", len(p1Tasks))
+	}
+
+	// Task should appear under p2.
+	p2Tasks, err := s.ListTasksByProjectAndStatus(ctx, p2.ID, "in_progress")
+	if err != nil {
+		t.Fatalf("ListTasksByProjectAndStatus p2: %v", err)
+	}
+	if len(p2Tasks) != 1 || p2Tasks[0].ID != task.ID {
+		t.Errorf("expected task in p2, got %v", p2Tasks)
+	}
+}

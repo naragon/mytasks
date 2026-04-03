@@ -1,24 +1,24 @@
 {{define "kanban_card.html"}}
-<div class="kanban-card priority-{{.Priority}}" id="task-{{.ID}}" data-id="{{.ID}}">
+<div class="kanban-card priority-{{.Task.Priority}}" id="task-{{.Task.ID}}" data-id="{{.Task.ID}}">
     <div class="kanban-card-header">
-        <span class="kanban-card-description" onclick="toggleKanbanCardEdit({{.ID}})">{{.Description}}</span>
+        <span class="kanban-card-description" onclick="toggleKanbanCardEdit({{.Task.ID}})">{{.Task.Description}}</span>
         <button class="btn btn-sm btn-icon task-delete-btn"
-            hx-delete="/api/tasks/{{.ID}}"
-            hx-target="#task-{{.ID}}"
+            hx-delete="/api/tasks/{{.Task.ID}}"
+            hx-target="#task-{{.Task.ID}}"
             hx-swap="outerHTML"
             hx-confirm="Delete this task?">&times;</button>
     </div>
     <div class="kanban-card-meta">
-        <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
-        {{if .DueDate}}
-        <span class="due-date {{if .IsOverdue}}overdue{{end}}">{{.DueDate.Format "Jan 2"}}</span>
+        <span class="priority-badge priority-{{.Task.Priority}}">{{.Task.Priority}}</span>
+        {{if .Task.DueDate}}
+        <span class="due-date {{if .Task.IsOverdue}}overdue{{end}}">{{.Task.DueDate.Format "Jan 2"}}</span>
         {{end}}
     </div>
-    {{if .Notes}}
-    <div class="kanban-card-notes">{{.Notes}}</div>
+    {{if .Task.Notes}}
+    <div class="kanban-card-notes">{{.Task.Notes}}</div>
     {{end}}
-    <div id="kanban-card-edit-{{.ID}}" class="kanban-card-edit hidden">
-        {{template "task_form.html" (dict "Task" . "KanbanForm" true)}}
+    <div id="kanban-card-edit-{{.Task.ID}}" class="kanban-card-edit hidden">
+        {{template "task_form.html" (dict "Task" .Task "ActiveProjects" .ActiveProjects "KanbanForm" true)}}
     </div>
 </div>
 {{end}}
