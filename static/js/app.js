@@ -183,6 +183,9 @@ function initializeKanban() {
                             sort_order: newIndex + 1
                         })
                     });
+
+                    // Keep inline edit form state in sync with card column immediately.
+                    syncKanbanCardEditStatus(evt.item, newStatus);
                 }
 
                 // Reorder within the target column
@@ -212,6 +215,13 @@ function initializeKanban() {
             }
         });
     });
+}
+
+function syncKanbanCardEditStatus(card, status) {
+    const statusSelect = card.querySelector('.kanban-card-edit select[name="status"]');
+    if (statusSelect) {
+        statusSelect.value = status;
+    }
 }
 
 function updateKanbanCounts() {

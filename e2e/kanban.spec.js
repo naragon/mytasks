@@ -23,6 +23,31 @@ async function createProjectFromSidebar(page, projectName) {
   return match[1];
 }
 
+async function moveCardToStatusViaSortable(page, taskName, fromStatus, toStatus) {
+  await page.evaluate(({ taskNameInner, fromStatusInner, toStatusInner }) => {
+    const sourceCards = document.querySelector(`.kanban-column[data-status="${fromStatusInner}"] .kanban-cards`);
+    const targetCards = document.querySelector(`.kanban-column[data-status="${toStatusInner}"] .kanban-cards`);
+    if (!sourceCards || !targetCards) throw new Error('source or target kanban column not found');
+
+    const card = Array.from(sourceCards.querySelectorAll('.kanban-card'))
+      .find(el => (el.textContent || '').includes(taskNameInner));
+    if (!card) throw new Error('task card not found');
+
+    targetCards.appendChild(card);
+
+    const sortable = targetCards._sortable;
+    if (!sortable || !sortable.options || typeof sortable.options.onEnd !== 'function') {
+      throw new Error('sortable onEnd handler unavailable');
+    }
+
+    sortable.options.onEnd({
+      item: card,
+      from: sourceCards,
+      to: targetCards
+    });
+  }, { taskNameInner: taskName, fromStatusInner: fromStatus, toStatusInner: toStatus });
+}
+
 test.describe('Home page', () => {
   test('redirects to first project or shows empty state', async ({ page }) => {
     const response = await page.goto('/');
@@ -220,6 +245,34 @@ test.describe('Task creation', () => {
     await expect(page.locator('.kanban-column[data-status="todo"]')).toBeVisible();
     await expect(page.locator('.kanban-column[data-status="in_progress"]')).toBeVisible();
     await expect(page.locator('.kanban-column[data-status="done"]')).toBeVisible();
+  });
+
+  test('editing task after moving to in progress shows in_progress status', async ({ page }) => {
+    await page.goto('/');
+
+    if (!page.url().includes('/projects/')) {
+      await createProjectFromSidebar(page, `Move Status Project ${Date.now()}`);
+    }
+
+    const taskName = `Status Sync Task ${Date.now()}`;
+    await page.locator('.kanban-column[data-status="todo"] button:has-text("+")').click();
+    const todoForm = page.locator('#kanban-form-todo');
+    await expect(todoForm).toBeVisible();
+    await todoForm.locator('input[name="description"], textarea[name="description"]').fill(taskName);
+    await todoForm.locator('button[type="submit"]').click();
+
+    const todoCard = page.locator(`.kanban-column[data-status="todo"] .kanban-card:has-text("${taskName}")`).first();
+    await expect(todoCard).toBeVisible();
+
+    await moveCardToStatusViaSortable(page, taskName, 'todo', 'in_progress');
+
+    const movedCard = page.locator(`.kanban-column[data-status="in_progress"] .kanban-card:has-text("${taskName}")`).first();
+    await expect(movedCard).toBeVisible();
+    await movedCard.locator('.kanban-card-description').click();
+
+    const statusSelect = movedCard.locator('select[name="status"]');
+    await expect(statusSelect).toBeVisible();
+    await expect(statusSelect).toHaveValue('in_progress');
   });
 });
 
