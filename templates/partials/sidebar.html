@@ -36,8 +36,11 @@
                 <li class="sidebar-item {{if eq .CurrentView "upcoming"}}active{{end}}">
                     <a href="/upcoming">Upcoming</a>
                 </li>
-                <li class="sidebar-item {{if eq .CurrentView "archive"}}active{{end}}">
-                    <a href="/archive">Archive</a>
+                <li class="sidebar-item {{if eq .CurrentView "completed_projects"}}active{{end}}">
+                    <a href="/archive/projects">Completed Projects</a>
+                </li>
+                <li class="sidebar-item {{if eq .CurrentView "completed_tasks"}}active{{end}}">
+                    <a href="/archive/tasks">Completed Tasks</a>
                 </li>
             </ul>
         </div>

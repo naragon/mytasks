@@ -69,6 +69,8 @@ func main() {
 	r.Get("/projects/{id}", h.KanbanBoard)
 	r.Get("/upcoming", h.Upcoming)
 	r.Get("/archive", h.Archive)
+	r.Get("/archive/projects", h.CompletedProjects)
+	r.Get("/archive/tasks", h.CompletedTasks)
 
 	// Project API routes
 	r.Get("/api/projects/form", h.GetProjectForm)

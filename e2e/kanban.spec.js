@@ -74,10 +74,11 @@ test.describe('Sidebar', () => {
     await expect(page.locator('.sidebar')).toBeVisible();
   });
 
-  test('sidebar has upcoming and archive links', async ({ page }) => {
+  test('sidebar has upcoming and completed links', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.sidebar a[href="/upcoming"]')).toBeVisible();
-    await expect(page.locator('.sidebar a[href="/archive"]')).toBeVisible();
+    await expect(page.locator('.sidebar a[href="/archive/projects"]')).toBeVisible();
+    await expect(page.locator('.sidebar a[href="/archive/tasks"]')).toBeVisible();
   });
 
   test('sidebar can collapse and expand', async ({ page }) => {
@@ -298,21 +299,19 @@ test.describe('Upcoming view', () => {
   });
 });
 
-test.describe('Archive view', () => {
-  test('archive page loads', async ({ page }) => {
-    await page.goto('/archive');
-    await expect(page).toHaveTitle(/Archive/);
+test.describe('Completed views', () => {
+  test('completed projects page loads', async ({ page }) => {
+    await page.goto('/archive/projects');
+    await expect(page).toHaveTitle(/Completed Projects/);
     await expect(page.locator('.sidebar')).toBeVisible();
-    await expect(page.locator('h2:has-text("Archived Projects")')).toBeVisible();
+    await expect(page.locator('h2:has-text("Completed Projects")')).toBeVisible();
   });
 
-  test('archive shows empty state when no completed projects', async ({ page }) => {
-    await page.goto('/archive');
-    // Either shows project cards or empty state
-    const hasProjects = await page.locator('.archive-card').count();
-    if (hasProjects === 0) {
-      await expect(page.locator('.empty-state')).toBeVisible();
-    }
+  test('completed tasks page loads', async ({ page }) => {
+    await page.goto('/archive/tasks');
+    await expect(page).toHaveTitle(/Completed Tasks/);
+    await expect(page.locator('.sidebar')).toBeVisible();
+    await expect(page.locator('h2:has-text("Completed Tasks")')).toBeVisible();
   });
 });
 
@@ -328,9 +327,10 @@ test.describe('Project complete and archive flow', () => {
     // Accept the confirm dialog and click complete
     page.once('dialog', dialog => dialog.accept());
     await page.locator('.kanban-header button:has-text("Complete")').click();
-    await page.waitForURL('/archive');
+    await page.waitForURL('/archive/tasks');
 
-    // Project should be in archive
+    // Project should be in completed projects view
+    await page.goto('/archive/projects');
     await expect(page.locator('.archive-card:has-text("Complete Me Project")').first()).toBeVisible();
 
     // Project should not be in sidebar active list

@@ -12,10 +12,10 @@ const donePruneWindowDays = 7
 // KanbanData holds data for the Kanban board template.
 type KanbanData struct {
 	PageData
-	Project        *models.Project
-	TodoTasks      []models.Task
+	Project         *models.Project
+	TodoTasks       []models.Task
 	InProgressTasks []models.Task
-	DoneTasks      []models.Task
+	DoneTasks       []models.Task
 }
 
 // KanbanBoard renders the Kanban board for a project.

@@ -731,8 +731,8 @@ func TestListRecentDoneTasks(t *testing.T) {
 	ctx := context.Background()
 
 	since := time.Now().AddDate(0, 0, -7)
-	recentDate := time.Now().AddDate(0, 0, -2)  // 2 days ago — within window
-	oldDate := time.Now().AddDate(0, 0, -10)     // 10 days ago — outside window
+	recentDate := time.Now().AddDate(0, 0, -2) // 2 days ago — within window
+	oldDate := time.Now().AddDate(0, 0, -10)   // 10 days ago — outside window
 
 	projectID, _ := setupDoneTask(t, s, ctx, "P1", "Recent task", recentDate)
 	setupDoneTask(t, s, ctx, "P1-old", "Old task", oldDate)

@@ -13,8 +13,8 @@ type Task struct {
 	ProjectName string     `json:"-"`
 	Description string     `json:"description"`
 	Notes       string     `json:"notes,omitempty"`
-	Priority    string     `json:"priority"`               // "high", "medium", "low"
-	Status      string     `json:"status"`                 // "todo", "in_progress", "done"
+	Priority    string     `json:"priority"` // "high", "medium", "low"
+	Status      string     `json:"status"`   // "todo", "in_progress", "done"
 	DueDate     *time.Time `json:"due_date,omitempty"`
 	Completed   bool       `json:"completed"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`

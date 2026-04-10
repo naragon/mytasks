@@ -1,10 +1,10 @@
-{{define "archive.html"}}
+{{define "archive_projects.html"}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archive - My Tasks</title>
+    <title>Completed Projects - My Tasks</title>
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
     <main class="main-content">
         <div class="archive-page">
             <div class="page-header">
-                <h2>Archived Projects</h2>
+                <h2>Completed Projects</h2>
             </div>
 
             {{if .ArchivedProjects}}
@@ -25,24 +25,18 @@
                         <summary class="archive-summary">
                             <div class="archive-summary-info">
                                 <span class="archive-project-name">{{.Name}}</span>
-                                {{if .IsProjectCompleted}}
-                                    {{if .CompletedAt}}
-                                    <span class="completed-date">Completed {{.CompletedAt.Format "Jan 2, 2006"}}</span>
-                                    {{end}}
-                                {{else}}
-                                <span class="archive-active-badge">Active</span>
+                                {{if .CompletedAt}}
+                                <span class="completed-date">Completed {{.CompletedAt.Format "Jan 2, 2006"}}</span>
                                 {{end}}
                                 {{if gt $totalTasks 0}}
                                 <span class="archive-task-count">{{$totalTasks}} task{{if gt $totalTasks 1}}s{{end}}</span>
                                 {{end}}
                             </div>
                             <div class="archive-summary-actions">
-                                {{if .IsProjectCompleted}}
                                 <button class="btn btn-sm btn-secondary"
                                     hx-post="/api/projects/{{.ID}}/reopen"
                                     hx-swap="none"
                                     onclick="event.preventDefault(); event.stopPropagation();">Reopen</button>
-                                {{end}}
                             </div>
                         </summary>
 
@@ -56,10 +50,7 @@
                             <div class="archive-tasks">
                                 {{if .DoneTasks}}
                                 <div class="archive-task-group">
-                                    <h4 class="archive-task-group-title">
-                                        {{if .IsProjectCompleted}}Done{{else}}Old Done Tasks{{end}}
-                                        <span class="kanban-count">{{len .DoneTasks}}</span>
-                                    </h4>
+                                    <h4 class="archive-task-group-title">Done <span class="kanban-count">{{len .DoneTasks}}</span></h4>
                                     <ul class="archive-task-list">
                                         {{range .DoneTasks}}
                                         <li class="archive-task-item status-done">
@@ -101,7 +92,7 @@
                                 {{end}}
                             </div>
                             {{else}}
-                            <p class="archive-no-tasks">No tasks in this project.</p>
+                            <p class="archive-no-tasks">Nothing to display</p>
                             {{end}}
                         </div>
                     </details>
@@ -110,7 +101,7 @@
             </div>
             {{else}}
             <div class="empty-state">
-                <p>No archived projects.</p>
+                <p>Nothing to display</p>
             </div>
             {{end}}
         </div>

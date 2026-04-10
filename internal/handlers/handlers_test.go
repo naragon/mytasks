@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -646,11 +647,26 @@ func TestMoveTaskHandler_ToDone(t *testing.T) {
 	}
 }
 
-func TestArchiveHandler_IncludesActiveProjectWithOldDoneTasks(t *testing.T) {
-	_, s := setupTestHandlers(t)
+func TestArchiveHandler_RedirectsToCompletedTasks(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	req := httptest.NewRequest("GET", "/archive", nil)
+	rec := httptest.NewRecorder()
+
+	h.Archive(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected %d, got %d", http.StatusFound, rec.Code)
+	}
+	if got := rec.Header().Get("Location"); got != "/archive/tasks" {
+		t.Fatalf("expected redirect to /archive/tasks, got %q", got)
+	}
+}
+
+func TestCompletedTasksHandler_IncludesOnlyActiveProjectsWithOldDoneTasks(t *testing.T) {
+	h, s := setupTestHandlersWithTemplates(t)
 	ctx := context.Background()
 
-	// Active project with a done task completed 10 days ago — should appear in archive.
 	oldProject := &models.Project{Name: "Admin", Type: "project"}
 	if err := s.CreateProject(ctx, oldProject); err != nil {
 		t.Fatalf("CreateProject: %v", err)
@@ -667,7 +683,6 @@ func TestArchiveHandler_IncludesActiveProjectWithOldDoneTasks(t *testing.T) {
 		t.Fatalf("set completed_at: %v", err)
 	}
 
-	// Active project with only a recent done task — should NOT appear.
 	recentProject := &models.Project{Name: "Sprint", Type: "project"}
 	if err := s.CreateProject(ctx, recentProject); err != nil {
 		t.Fatalf("CreateProject: %v", err)
@@ -679,18 +694,81 @@ func TestArchiveHandler_IncludesActiveProjectWithOldDoneTasks(t *testing.T) {
 	if err := s.MoveTaskToStatus(ctx, recentTask.ID, "done", 0); err != nil {
 		t.Fatalf("MoveTaskToStatus: %v", err)
 	}
-	// completed_at defaults to today, so no override needed.
 
-	before := time.Now().AddDate(0, 0, -donePruneWindowDays)
-	projects, err := s.ListActiveProjectsWithOldDoneTasks(ctx, before)
-	if err != nil {
-		t.Fatalf("ListActiveProjectsWithOldDoneTasks: %v", err)
+	completedProject := &models.Project{Name: "Completed", Type: "project"}
+	if err := s.CreateProject(ctx, completedProject); err != nil {
+		t.Fatalf("CreateProject completed: %v", err)
 	}
-	if len(projects) != 1 {
-		t.Fatalf("expected 1 active project with old done tasks, got %d", len(projects))
+	if err := s.MarkProjectComplete(ctx, completedProject.ID); err != nil {
+		t.Fatalf("MarkProjectComplete: %v", err)
 	}
-	if projects[0].ID != oldProject.ID {
-		t.Errorf("expected project %d (%s), got %d (%s)", oldProject.ID, oldProject.Name, projects[0].ID, projects[0].Name)
+
+	req := httptest.NewRequest("GET", "/archive/tasks", nil)
+	rec := httptest.NewRecorder()
+	h.CompletedTasks(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, fmt.Sprintf(`id="project-%d"`, oldProject.ID)) {
+		t.Fatalf("expected completed tasks cards to include old active project %q", oldProject.Name)
+	}
+	if strings.Contains(body, fmt.Sprintf(`id="project-%d"`, recentProject.ID)) {
+		t.Fatalf("did not expect recent project %q in completed tasks cards", recentProject.Name)
+	}
+	if strings.Contains(body, fmt.Sprintf(`id="project-%d"`, completedProject.ID)) {
+		t.Fatalf("did not expect completed project %q in completed tasks cards", completedProject.Name)
+	}
+}
+
+func TestCompletedProjectsHandler_ShowsOnlyCompletedProjects(t *testing.T) {
+	h, s := setupTestHandlersWithTemplates(t)
+	ctx := context.Background()
+
+	activeProject := &models.Project{Name: "Active", Type: "project"}
+	if err := s.CreateProject(ctx, activeProject); err != nil {
+		t.Fatalf("CreateProject active: %v", err)
+	}
+	activeTask := &models.Task{ProjectID: activeProject.ID, Description: "Old active task", Priority: "medium", Status: "todo"}
+	if err := s.CreateTask(ctx, activeTask); err != nil {
+		t.Fatalf("CreateTask active: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, activeTask.ID, "done", 0); err != nil {
+		t.Fatalf("MoveTaskToStatus active: %v", err)
+	}
+	oldDate := time.Now().AddDate(0, 0, -10).Format("2006-01-02")
+	if _, err := s.DB().ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, oldDate, activeTask.ID); err != nil {
+		t.Fatalf("set active completed_at: %v", err)
+	}
+
+	completedProject := &models.Project{Name: "Shipped", Type: "project"}
+	if err := s.CreateProject(ctx, completedProject); err != nil {
+		t.Fatalf("CreateProject completed: %v", err)
+	}
+	completedTask := &models.Task{ProjectID: completedProject.ID, Description: "Shipped task", Priority: "high", Status: "todo"}
+	if err := s.CreateTask(ctx, completedTask); err != nil {
+		t.Fatalf("CreateTask completed: %v", err)
+	}
+	if err := s.MarkProjectComplete(ctx, completedProject.ID); err != nil {
+		t.Fatalf("MarkProjectComplete: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/archive/projects", nil)
+	rec := httptest.NewRecorder()
+	h.CompletedProjects(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, fmt.Sprintf(`id="project-%d"`, completedProject.ID)) {
+		t.Fatalf("expected completed projects cards to include %q", completedProject.Name)
+	}
+	if strings.Contains(body, fmt.Sprintf(`id="project-%d"`, activeProject.ID)) {
+		t.Fatalf("did not expect active project %q in completed projects cards", activeProject.Name)
 	}
 }
 

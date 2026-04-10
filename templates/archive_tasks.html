@@ -1,0 +1,73 @@
+{{define "archive_tasks.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Completed Tasks - My Tasks</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+<div class="app-layout">
+    {{template "sidebar.html" .}}
+    <main class="main-content">
+        <div class="archive-page">
+            <div class="page-header">
+                <h2>Completed Tasks</h2>
+            </div>
+
+            {{if .ArchivedProjects}}
+            <div class="archive-list">
+                {{range .ArchivedProjects}}
+                <div class="archive-card" id="project-{{.ID}}">
+                    <details class="archive-details">
+                        <summary class="archive-summary">
+                            <div class="archive-summary-info">
+                                <span class="archive-project-name">{{.Name}}</span>
+                                <span class="archive-task-count">{{len .DoneTasks}} task{{if gt (len .DoneTasks) 1}}s{{end}}</span>
+                            </div>
+                        </summary>
+
+                        <div class="archive-details-body">
+                            {{if .Description}}
+                            <p class="archive-card-description">{{.Description}}</p>
+                            {{end}}
+
+                            {{if .DoneTasks}}
+                            <div class="archive-tasks">
+                                <div class="archive-task-group">
+                                    <h4 class="archive-task-group-title">Old Done Tasks <span class="kanban-count">{{len .DoneTasks}}</span></h4>
+                                    <ul class="archive-task-list">
+                                        {{range .DoneTasks}}
+                                        <li class="archive-task-item status-done">
+                                            <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
+                                            <span class="archive-task-description">{{.Description}}</span>
+                                            {{if .CompletedAt}}<span class="completed-date">Completed {{.CompletedAt.Format "Jan 2, 2006"}}</span>{{end}}
+                                            {{if .DueDate}}<span class="due-date">{{.DueDate.Format "Jan 2, 2006"}}</span>{{end}}
+                                        </li>
+                                        {{end}}
+                                    </ul>
+                                </div>
+                            </div>
+                            {{else}}
+                            <p class="archive-no-tasks">Nothing to display</p>
+                            {{end}}
+                        </div>
+                    </details>
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <p>Nothing to display</p>
+            </div>
+            {{end}}
+        </div>
+    </main>
+</div>
+<script src="/static/js/vendor/htmx.min.js"></script>
+<script src="/static/js/vendor/Sortable.min.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

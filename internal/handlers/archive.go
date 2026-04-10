@@ -10,24 +10,27 @@ import (
 // ArchivedProjectEntry combines a project with its tasks grouped by status.
 type ArchivedProjectEntry struct {
 	models.Project
-	IsProjectCompleted bool // true for completed projects, false for active projects with old done tasks
+	IsProjectCompleted bool
 	TodoTasks          []models.Task
 	InProgressTasks    []models.Task
 	DoneTasks          []models.Task
 }
 
-// ArchiveData holds data for the Archive template.
+// ArchiveData holds data for archive templates.
 type ArchiveData struct {
 	PageData
 	ArchivedProjects []ArchivedProjectEntry
 }
 
-// Archive renders the completed/archived projects view.
+// Archive redirects to the completed tasks view.
 func (h *Handlers) Archive(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	before := time.Now().AddDate(0, 0, -donePruneWindowDays)
+	http.Redirect(w, r, "/archive/tasks", http.StatusFound)
+}
 
-	// Completed projects — show all tasks regardless of age.
+// CompletedProjects renders completed projects and all of their tasks.
+func (h *Handlers) CompletedProjects(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	completedProjects, err := h.store.ListCompletedProjects(ctx)
 	if err != nil {
 		respondServerError(w, err)
@@ -60,12 +63,36 @@ func (h *Handlers) Archive(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Active projects with old done tasks — show only those old done tasks.
+	activeProjects, err := h.loadActiveProjects(ctx)
+	if err != nil {
+		respondServerError(w, err)
+		return
+	}
+
+	data := ArchiveData{
+		PageData: PageData{
+			Title:          "Completed Projects",
+			ActiveProjects: activeProjects,
+			CurrentView:    "completed_projects",
+		},
+		ArchivedProjects: entries,
+	}
+
+	h.renderTemplate(w, "archive_projects.html", data)
+}
+
+// CompletedTasks renders old completed tasks for active projects, grouped by project.
+func (h *Handlers) CompletedTasks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	before := time.Now().AddDate(0, 0, -donePruneWindowDays)
+
 	activeWithOld, err := h.store.ListActiveProjectsWithOldDoneTasks(ctx, before)
 	if err != nil {
 		respondServerError(w, err)
 		return
 	}
+
+	entries := make([]ArchivedProjectEntry, 0, len(activeWithOld))
 	for _, p := range activeWithOld {
 		oldDone, err := h.store.ListOldDoneTasks(ctx, p.ID, before)
 		if err != nil {
@@ -73,9 +100,8 @@ func (h *Handlers) Archive(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		entries = append(entries, ArchivedProjectEntry{
-			Project:            p,
-			IsProjectCompleted: false,
-			DoneTasks:          oldDone,
+			Project:   p,
+			DoneTasks: oldDone,
 		})
 	}
 
@@ -87,12 +113,12 @@ func (h *Handlers) Archive(w http.ResponseWriter, r *http.Request) {
 
 	data := ArchiveData{
 		PageData: PageData{
-			Title:          "Archive",
+			Title:          "Completed Tasks",
 			ActiveProjects: activeProjects,
-			CurrentView:    "archive",
+			CurrentView:    "completed_tasks",
 		},
 		ArchivedProjects: entries,
 	}
 
-	h.renderTemplate(w, "archive.html", data)
+	h.renderTemplate(w, "archive_tasks.html", data)
 }

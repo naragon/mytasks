@@ -26,7 +26,7 @@ type PageData struct {
 	Title            string
 	ActiveProjects   []models.Project
 	CurrentProjectID int64
-	CurrentView      string // "kanban", "upcoming", "archive"
+	CurrentView      string // "kanban", "upcoming", "completed_projects", "completed_tasks"
 }
 
 // New creates a new Handlers instance.
