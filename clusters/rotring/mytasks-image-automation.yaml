@@ -1,0 +1,48 @@
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: mytasks
+  namespace: flux-system
+spec:
+  image: naragon/mytasks
+  interval: 1m0s
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: mytasks
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: mytasks
+  filterTags:
+    pattern: '^main-(?P<ts>[0-9]{14})$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageUpdateAutomation
+metadata:
+  name: mytasks
+  namespace: flux-system
+spec:
+  interval: 2m0s
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: 'chore(images): update mytasks image to {{range .Updated.Images}}{{.}}{{end}}'
+    push:
+      branch: main
+  update:
+    path: ./deploy/k3s
+    strategy: Setters
