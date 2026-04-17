@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: mytasks
-          image: naragon/mytasks:main-20260417070241 # {"$imagepolicy": "flux-system:mytasks"}
+          image: naragon/mytasks:main-20260417071355 # {"$imagepolicy": "flux-system:mytasks"}
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
