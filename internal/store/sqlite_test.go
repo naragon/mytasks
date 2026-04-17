@@ -502,6 +502,58 @@ func TestListTasksByProjectCompletedBetween(t *testing.T) {
 	}
 }
 
+func TestListTasks(t *testing.T) {
+	s := setupTestDB(t)
+	ctx := context.Background()
+
+	p := &models.Project{Name: "P", Type: "project"}
+	if err := s.CreateProject(ctx, p); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+
+	todo := &models.Task{ProjectID: p.ID, Description: "Todo", Priority: "medium", Status: "todo"}
+	recentDone := &models.Task{ProjectID: p.ID, Description: "Recent done", Priority: "medium", Status: "todo"}
+	oldDone := &models.Task{ProjectID: p.ID, Description: "Old done", Priority: "medium", Status: "todo"}
+	for _, task := range []*models.Task{todo, recentDone, oldDone} {
+		if err := s.CreateTask(ctx, task); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+	}
+	if err := s.MoveTaskToStatus(ctx, recentDone.ID, "done", 1); err != nil {
+		t.Fatalf("MoveTaskToStatus recent: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, oldDone.ID, "done", 2); err != nil {
+		t.Fatalf("MoveTaskToStatus old: %v", err)
+	}
+
+	if _, err := s.DB().ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, time.Now().AddDate(0, 0, -2).Format("2006-01-02"), recentDone.ID); err != nil {
+		t.Fatalf("set recent completed_at: %v", err)
+	}
+	if _, err := s.DB().ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, time.Now().AddDate(0, 0, -10).Format("2006-01-02"), oldDone.ID); err != nil {
+		t.Fatalf("set old completed_at: %v", err)
+	}
+
+	allTasks, err := s.ListTasks(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTasks all: %v", err)
+	}
+	if len(allTasks) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(allTasks))
+	}
+
+	since := time.Now().AddDate(0, 0, -7)
+	recentTasks, err := s.ListTasks(ctx, &since)
+	if err != nil {
+		t.Fatalf("ListTasks filtered: %v", err)
+	}
+	if len(recentTasks) != 1 {
+		t.Fatalf("expected 1 recent completed task, got %d", len(recentTasks))
+	}
+	if recentTasks[0].Description != "Recent done" {
+		t.Fatalf("expected Recent done, got %q", recentTasks[0].Description)
+	}
+}
+
 func TestReorderTasks(t *testing.T) {
 	store := setupTestDB(t)
 	ctx := context.Background()

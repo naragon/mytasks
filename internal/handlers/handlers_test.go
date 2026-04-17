@@ -855,3 +855,108 @@ func TestUpdateTaskHandler_RejectsCompletedProject(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
 }
+
+func TestListTasksHandler_ReturnsAllTasks(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	p := &models.Project{Name: "Project", Type: "project"}
+	if err := s.CreateProject(ctx, p); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+
+	tasksToCreate := []models.Task{
+		{ProjectID: p.ID, Description: "Todo", Priority: "medium", Status: "todo"},
+		{ProjectID: p.ID, Description: "In Progress", Priority: "medium", Status: "in_progress"},
+		{ProjectID: p.ID, Description: "Done", Priority: "medium", Status: "done"},
+	}
+	for i := range tasksToCreate {
+		if err := s.CreateTask(ctx, &tasksToCreate[i]); err != nil {
+			t.Fatalf("CreateTask: %v", err)
+		}
+	}
+
+	req := httptest.NewRequest("GET", "/api/tasks", nil)
+	rec := httptest.NewRecorder()
+
+	h.ListTasks(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var got []models.Task
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(got))
+	}
+}
+
+func TestListTasksHandler_FiltersCompletedWithinDays(t *testing.T) {
+	h, s := setupTestHandlers(t)
+	ctx := context.Background()
+
+	p := &models.Project{Name: "Project", Type: "project"}
+	if err := s.CreateProject(ctx, p); err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+
+	recent := &models.Task{ProjectID: p.ID, Description: "Recent done", Priority: "medium", Status: "todo"}
+	old := &models.Task{ProjectID: p.ID, Description: "Old done", Priority: "medium", Status: "todo"}
+	if err := s.CreateTask(ctx, recent); err != nil {
+		t.Fatalf("CreateTask recent: %v", err)
+	}
+	if err := s.CreateTask(ctx, old); err != nil {
+		t.Fatalf("CreateTask old: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, recent.ID, "done", 1); err != nil {
+		t.Fatalf("MoveTaskToStatus recent: %v", err)
+	}
+	if err := s.MoveTaskToStatus(ctx, old.ID, "done", 2); err != nil {
+		t.Fatalf("MoveTaskToStatus old: %v", err)
+	}
+
+	recentDate := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	oldDate := time.Now().AddDate(0, 0, -10).Format("2006-01-02")
+	if _, err := s.DB().ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, recentDate, recent.ID); err != nil {
+		t.Fatalf("set recent completed_at: %v", err)
+	}
+	if _, err := s.DB().ExecContext(ctx, `UPDATE tasks SET completed_at = ? WHERE id = ?`, oldDate, old.ID); err != nil {
+		t.Fatalf("set old completed_at: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/api/tasks?completed_within_days=7", nil)
+	rec := httptest.NewRecorder()
+
+	h.ListTasks(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var got []models.Task
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 task, got %d", len(got))
+	}
+	if got[0].Description != "Recent done" {
+		t.Fatalf("expected Recent done, got %q", got[0].Description)
+	}
+}
+
+func TestListTasksHandler_InvalidCompletedWithinDays(t *testing.T) {
+	h, _ := setupTestHandlers(t)
+
+	req := httptest.NewRequest("GET", "/api/tasks?completed_within_days=abc", nil)
+	rec := httptest.NewRecorder()
+
+	h.ListTasks(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", rec.Code)
+	}
+}

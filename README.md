@@ -163,6 +163,7 @@ Notes:
 | Method | Path | Purpose | Request Body | Response |
 |---|---|---|---|---|
 | `GET` | `/api/projects/{project_id}/tasks/form` | Get blank task form partial | none | HTML partial (`task_form.html`) |
+| `GET` | `/api/tasks` | List tasks (JSON), optional completion window filter | query: `completed_within_days` | JSON (`[]Task`) |
 | `GET` | `/api/tasks/{id}/form` | Get edit task form partial | none | HTML partial (`task_form.html`) |
 | `POST` | `/api/projects/{id}/tasks` | Create task in project | form: `description`, `notes`, `priority`, `status`, `due_date` | HTML partial (`task_item.html`) |
 | `PUT` | `/api/tasks/{id}` | Update task | form: `description`, `notes`, `priority`, `status`, `due_date`, optional `project_id` | HTML partial (`task_item.html`) |
@@ -176,6 +177,7 @@ Notes:
 - `priority` values: `high`, `medium`, `low`.
 - `status` values: `todo`, `in_progress`, `done`.
 - `due_date` format is `YYYY-MM-DD`.
+- `completed_within_days` filters `/api/tasks` to done tasks completed in the last N days.
 
 ### CSRF/Origin Behavior
 

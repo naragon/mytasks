@@ -420,6 +420,74 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id int64) (*models.Task, erro
 	return task, nil
 }
 
+// ListTasks retrieves all tasks, optionally filtered to tasks completed on/after completedSince.
+func (s *SQLiteStore) ListTasks(ctx context.Context, completedSince *time.Time) ([]models.Task, error) {
+	query := `
+		SELECT id, project_id, description, notes, priority, status, due_date, completed, completed_at, sort_order, created_at, updated_at
+		FROM tasks
+	`
+	args := []interface{}{}
+
+	if completedSince != nil {
+		query += ` WHERE status = 'done' AND completed_at IS NOT NULL AND completed_at >= ?`
+		args = append(args, completedSince.Format("2006-01-02"))
+		query += ` ORDER BY completed_at DESC, sort_order ASC`
+	} else {
+		query += ` ORDER BY created_at DESC, id DESC`
+	}
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tasks: %w", err)
+	}
+	defer rows.Close()
+
+	var tasks []models.Task
+	for rows.Next() {
+		var task models.Task
+		var dueDate sql.NullString
+		var completedAt sql.NullString
+
+		err := rows.Scan(
+			&task.ID,
+			&task.ProjectID,
+			&task.Description,
+			&task.Notes,
+			&task.Priority,
+			&task.Status,
+			&dueDate,
+			&task.Completed,
+			&completedAt,
+			&task.SortOrder,
+			&task.CreatedAt,
+			&task.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan task: %w", err)
+		}
+
+		if dueDate.Valid {
+			parsedDate, err := parseSQLiteDate(dueDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task due_date: %w", err)
+			}
+			task.DueDate = parsedDate
+		}
+
+		if completedAt.Valid {
+			parsedDate, err := parseSQLiteDate(completedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse task completed_at: %w", err)
+			}
+			task.CompletedAt = parsedDate
+		}
+
+		tasks = append(tasks, task)
+	}
+
+	return tasks, rows.Err()
+}
+
 // ListTasksByProject retrieves tasks for a project ordered by sort_order.
 // If limit is 0, all tasks are returned.
 func (s *SQLiteStore) ListTasksByProject(ctx context.Context, projectID int64, limit int) ([]models.Task, error) {

@@ -24,6 +24,7 @@ type Store interface {
 	// Task operations
 	CreateTask(ctx context.Context, task *models.Task) error
 	GetTask(ctx context.Context, id int64) (*models.Task, error)
+	ListTasks(ctx context.Context, completedSince *time.Time) ([]models.Task, error)
 	ListTasksByProject(ctx context.Context, projectID int64, limit int) ([]models.Task, error)
 	ListTasksByProjectFiltered(ctx context.Context, projectID int64, completed bool, limit int) ([]models.Task, error)
 	ListTasksByProjectCompletedBetween(ctx context.Context, projectID int64, from, to *time.Time, limit int) ([]models.Task, error)

@@ -84,6 +84,7 @@ func main() {
 
 	// Task API routes
 	r.Get("/api/projects/{project_id}/tasks/form", h.GetTaskForm)
+	r.Get("/api/tasks", h.ListTasks)
 	r.Get("/api/tasks/{id}/form", h.GetTaskForm)
 	r.Post("/api/projects/{id}/tasks", h.CreateTask)
 	r.Put("/api/tasks/{id}", h.UpdateTask)

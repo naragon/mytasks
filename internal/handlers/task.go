@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"mytasks/internal/models"
 )
@@ -251,4 +252,38 @@ func (h *Handlers) GetTaskForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.renderPartial(w, "task_form.html", task)
+}
+
+// ListTasks returns all tasks, optionally filtered by completion window.
+// Query params:
+//   - completed_within_days: optional non-negative integer; when set, only done tasks completed within the last N days are returned.
+func (h *Handlers) ListTasks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var completedSince *time.Time
+	if rawDays := r.URL.Query().Get("completed_within_days"); rawDays != "" {
+		days, err := strconv.Atoi(rawDays)
+		if err != nil || days < 0 {
+			respondError(w, http.StatusBadRequest, "invalid completed_within_days")
+			return
+		}
+
+		since := time.Now().AddDate(0, 0, -days)
+		completedSince = &since
+	}
+
+	tasks, err := h.store.ListTasks(ctx, completedSince)
+	if err != nil {
+		respondServerError(w, err)
+		return
+	}
+	if tasks == nil {
+		tasks = []models.Task{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		respondServerError(w, err)
+		return
+	}
 }
