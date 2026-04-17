@@ -28,7 +28,7 @@ metadata:
   name: mytasks
   namespace: flux-system
 spec:
-  interval: 2m0s
+  interval: 1h0m0s
   sourceRef:
     kind: GitRepository
     name: flux-system
