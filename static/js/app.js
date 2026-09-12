@@ -1,5 +1,6 @@
 // Initialize Kanban board and other sortables
 document.addEventListener('DOMContentLoaded', function() {
+    initializeThemeControls();
     initializeKanban();
     initializeSidebarSortable();
     initializeSidebarControls();
@@ -8,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Re-initialize after htmx swaps
 document.addEventListener('htmx:afterSwap', function() {
+    initializeThemeControls();
     initializeKanban();
     initializeSidebarControls();
     initializeFormTriggers();
@@ -15,8 +17,68 @@ document.addEventListener('htmx:afterSwap', function() {
 
 const sidebarWidthStorageKey = 'mytasks.sidebar.width';
 const sidebarCollapsedStorageKey = 'mytasks.sidebar.collapsed';
+const themeStorageKey = 'mytasks.theme';
 const sidebarMinWidth = 200;
 const sidebarMaxWidth = 460;
+
+function initializeThemeControls() {
+    applyStoredTheme();
+
+    document.querySelectorAll('[data-action="toggle-theme"]').forEach(function(button) {
+        if (button.dataset.bound === '1') return;
+        button.dataset.bound = '1';
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            toggleTheme();
+        });
+    });
+
+    updateThemeToggleUI();
+}
+
+function applyStoredTheme() {
+    try {
+        const savedTheme = localStorage.getItem(themeStorageKey);
+        if (savedTheme === 'light' || savedTheme === 'dark') {
+            document.documentElement.dataset.theme = savedTheme;
+        }
+    } catch (_error) {
+        // Ignore storage failures.
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = getActiveTheme();
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = nextTheme;
+
+    try {
+        localStorage.setItem(themeStorageKey, nextTheme);
+    } catch (_error) {
+        // Ignore storage failures.
+    }
+
+    updateThemeToggleUI();
+}
+
+function getActiveTheme() {
+    const explicitTheme = document.documentElement.dataset.theme;
+    if (explicitTheme === 'light' || explicitTheme === 'dark') {
+        return explicitTheme;
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function updateThemeToggleUI() {
+    const isDark = getActiveTheme() === 'dark';
+
+    document.querySelectorAll('[data-action="toggle-theme"]').forEach(function(button) {
+        button.textContent = isDark ? '☀' : '☾';
+        button.setAttribute('aria-label', isDark ? 'Use light mode' : 'Use dark mode');
+        button.setAttribute('title', isDark ? 'Use light mode' : 'Use dark mode');
+    });
+}
 
 function initializeSidebarControls() {
     const layout = document.querySelector('.app-layout');
@@ -47,7 +109,7 @@ function bindSidebarResizer(layout, sidebar) {
 
     resizer.dataset.bound = '1';
     resizer.addEventListener('mousedown', function(event) {
-        if (window.matchMedia('(max-width: 600px)').matches) return;
+        if (window.matchMedia('(max-width: 760px)').matches) return;
 
         event.preventDefault();
         setSidebarCollapsed(layout, false);
@@ -94,7 +156,9 @@ function applyStoredSidebarState(layout) {
             setSidebarWidth(savedWidth, false);
         }
 
-        const isCollapsed = localStorage.getItem(sidebarCollapsedStorageKey) === '1';
+        const savedCollapsed = localStorage.getItem(sidebarCollapsedStorageKey);
+        const defaultCollapsed = window.matchMedia('(max-width: 760px)').matches;
+        const isCollapsed = savedCollapsed === null ? defaultCollapsed : savedCollapsed === '1';
         layout.classList.toggle('sidebar-collapsed', isCollapsed);
     } catch (_error) {
         // Ignore storage failures.
@@ -141,9 +205,10 @@ function getCurrentSidebarWidth() {
 
 function updateSidebarToggleUI(layout) {
     const collapsed = layout.classList.contains('sidebar-collapsed');
+    const isMobile = window.matchMedia('(max-width: 760px)').matches;
 
     document.querySelectorAll('[data-action="toggle-sidebar"]').forEach(function(button) {
-        button.textContent = collapsed ? '›' : '‹';
+        button.textContent = isMobile ? (collapsed ? '☰' : '×') : (collapsed ? '›' : '‹');
         button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
         button.setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
         button.setAttribute('title', collapsed ? 'Expand navigation' : 'Collapse navigation');
