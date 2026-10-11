@@ -1698,6 +1698,9 @@ body {
 }
 
 .kanban-column-header {
+    /* Reserve the same space even when a column has no add-task button. */
+    min-height: 3.6rem;
+    flex-shrink: 0;
     padding: 0.72rem 0.8rem;
     border-bottom-color: color-mix(in srgb, var(--color-border) 72%, transparent);
 }

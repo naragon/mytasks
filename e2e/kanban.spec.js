@@ -178,6 +178,56 @@ test.describe('Project creation and Kanban board', () => {
     expect(doneBox.x).toBeGreaterThan(inProgressBox.x);
   });
 
+  for (const width of [1280, 900, 390]) {
+    test(`kanban headers and columns have equal dimensions at ${width}px`, async ({ page }) => {
+      const projectResponse = await page.request.post('/api/projects', {
+        headers: { Origin: 'http://localhost:3000' },
+        form: { name: `Header Layout ${width}`, type: 'project' }
+      });
+      expect(projectResponse.ok()).toBeTruthy();
+      const projectPath = projectResponse.headers()['hx-redirect'];
+      expect(projectPath).toMatch(/^\/projects\/\d+$/);
+      await page.setViewportSize({ width, height: 900 });
+
+      async function expectEqualDimensions() {
+        for (const selector of ['.kanban-column', '.kanban-column-header']) {
+          const boxes = await page.locator(selector).evaluateAll(elements =>
+            elements.map(element => {
+              const { width, height, y } = element.getBoundingClientRect();
+              return { width, height, y };
+            })
+          );
+          expect(boxes).toHaveLength(3);
+          for (const box of boxes.slice(1)) {
+            expect(Math.abs(box.width - boxes[0].width)).toBeLessThan(1);
+            expect(Math.abs(box.height - boxes[0].height)).toBeLessThan(1);
+            expect(Math.abs(box.y - boxes[0].y)).toBeLessThan(1);
+          }
+        }
+      }
+
+      try {
+        await page.goto(projectPath);
+        await expectEqualDimensions();
+        // Uneven task counts must not compress headers or change column sizing.
+        for (const status of ['todo', 'todo', 'in_progress', 'done']) {
+          const response = await page.request.post(`/api${projectPath}/tasks`, {
+            headers: { Origin: 'http://localhost:3000' },
+            form: { description: `Header test ${status}`, priority: 'medium', status }
+          });
+          expect(response.ok()).toBeTruthy();
+        }
+        await page.reload();
+        await expectEqualDimensions();
+      } finally {
+        const response = await page.request.delete(`/api${projectPath}`, {
+          headers: { Origin: 'http://localhost:3000' }
+        });
+        expect(response.ok()).toBeTruthy();
+      }
+    });
+  }
+
   test('setting due date then navigating away and back keeps all kanban columns', async ({ page }) => {
     await page.goto('/');
     const suffix = Date.now();
