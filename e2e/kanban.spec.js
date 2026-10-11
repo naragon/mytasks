@@ -102,6 +102,71 @@ test.describe('Sidebar', () => {
     await expect(layout).not.toHaveClass(/sidebar-collapsed/);
   });
 
+  for (const width of [390, 760]) {
+    test(`mobile sidebar can reopen and create a project at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/');
+
+      const layout = page.locator('.app-layout');
+      const toggle = page.getByRole('button', { name: 'Expand navigation' });
+      const newProjectButton = page.locator('.sidebar [data-action="show-project-form"]');
+      await expect(layout).toHaveClass(/sidebar-collapsed/);
+      await expect(newProjectButton).not.toBeVisible();
+      await toggle.click();
+      await expect(layout).not.toHaveClass(/sidebar-collapsed/);
+      await expect(newProjectButton).toBeVisible();
+
+      await newProjectButton.click();
+      const form = page.locator('#new-project-form');
+      await expect(form).toBeVisible();
+      await form.locator('input[name="name"]').fill(`Mobile Sidebar ${width}`);
+      const responsePromise = page.waitForResponse(response =>
+        response.url().endsWith('/api/projects') && response.request().method() === 'POST'
+      );
+      await form.locator('button[type="submit"]').click();
+      const response = await responsePromise;
+      expect(response.ok()).toBeTruthy();
+      const projectPath = response.headers()['hx-redirect'];
+      try {
+        await page.waitForURL(`**${projectPath}`);
+        await expect(page.locator('.kanban-board')).toBeVisible();
+        await page.getByRole('button', { name: 'Collapse navigation' }).click();
+        await expect(newProjectButton).not.toBeVisible();
+        await page.reload();
+        await expect(layout).toHaveClass(/sidebar-collapsed/);
+        await page.getByRole('button', { name: 'Expand navigation' }).click();
+        await newProjectButton.click();
+        await expect(form).toBeVisible();
+      } finally {
+        const cleanup = await page.request.delete(`/api${projectPath}`, {
+          headers: { Origin: 'http://localhost:3000' }
+        });
+        expect(cleanup.ok()).toBeTruthy();
+      }
+    });
+  }
+
+  test('sidebar can be resized by dragging only while expanded', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.goto('/');
+    const sidebar = page.locator('.sidebar');
+    const resizer = page.locator('.sidebar-resizer');
+    const initialBox = await sidebar.boundingBox();
+    const handleBox = await resizer.boundingBox();
+    expect(initialBox).not.toBeNull();
+    expect(handleBox).not.toBeNull();
+    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(handleBox.x + 65, handleBox.y + 100);
+    await page.mouse.up();
+    const resizedBox = await sidebar.boundingBox();
+    expect(resizedBox.width).toBeGreaterThan(initialBox.width + 40);
+    await page.getByRole('button', { name: 'Collapse navigation' }).click();
+    await expect(resizer).not.toBeVisible();
+    await page.getByRole('button', { name: 'Expand navigation' }).click();
+    await expect(resizer).toBeVisible();
+  });
+
   test('sidebar can be resized', async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await page.goto('/');

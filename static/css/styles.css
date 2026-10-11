@@ -245,13 +245,20 @@ body.resizing-sidebar .sidebar-resizer {
     display: none;
 }
 
-.app-layout.sidebar-collapsed .sidebar-resize-btn {
+.app-layout.sidebar-collapsed .sidebar-resize-btn,
+.app-layout.sidebar-collapsed .sidebar-resizer {
     display: none;
 }
 
 .app-layout.sidebar-collapsed .sidebar-header {
     padding: 0.75rem 0;
     justify-content: center;
+}
+
+@media (min-width: 761px) {
+    .app-layout.sidebar-collapsed .sidebar-controls {
+        flex-direction: column;
+    }
 }
 
 /* ========= Main Content ========= */
@@ -1390,6 +1397,7 @@ body {
         display: block;
         max-height: 0;
         opacity: 0;
+        visibility: hidden;
         overflow: hidden;
         padding-top: 0;
         padding-bottom: 0;
