@@ -216,68 +216,71 @@ function updateSidebarToggleUI(layout) {
 }
 
 function initializeKanban() {
-    const kanbanPage = document.querySelector('.kanban-page');
-    if (!kanbanPage) return;
+    const boards = document.querySelectorAll('.kanban-page, .project-group');
+    if (boards.length === 0) return;
 
-    const projectId = kanbanPage.dataset.projectId;
+    boards.forEach(function(board) {
+        const projectId = board.dataset.projectId;
+        if (!projectId) return;
 
-    document.querySelectorAll('.kanban-cards').forEach(function(column) {
-        if (column._sortable) return;
+        board.querySelectorAll('.kanban-cards').forEach(function(column) {
+            if (column._sortable) return;
 
-        column._sortable = new Sortable(column, {
-            group: 'kanban',
-            animation: 150,
-            ghostClass: 'sortable-ghost',
-            dragClass: 'sortable-drag',
-            chosenClass: 'sortable-chosen',
-            onEnd: function(evt) {
-                const taskId = parseInt(evt.item.dataset.id);
-                const newStatus = evt.to.dataset.status;
-                const oldStatus = evt.from.dataset.status;
+            column._sortable = new Sortable(column, {
+                group: 'kanban-' + projectId,
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                chosenClass: 'sortable-chosen',
+                onEnd: function(evt) {
+                    const taskId = parseInt(evt.item.dataset.id);
+                    const newStatus = evt.to.dataset.status;
+                    const oldStatus = evt.from.dataset.status;
 
-                // If moved to a different column, update status
-                if (oldStatus !== newStatus) {
-                    const newIndex = Array.from(evt.to.querySelectorAll('.kanban-card'))
-                        .findIndex(card => parseInt(card.dataset.id) === taskId);
+                    // If moved to a different column, update status
+                    if (oldStatus !== newStatus) {
+                        const newIndex = Array.from(evt.to.querySelectorAll('.kanban-card'))
+                            .findIndex(card => parseInt(card.dataset.id) === taskId);
 
-                    fetch('/api/tasks/' + taskId + '/move', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            status: newStatus,
-                            sort_order: newIndex + 1
-                        })
-                    });
+                        fetch('/api/tasks/' + taskId + '/move', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                status: newStatus,
+                                sort_order: newIndex + 1
+                            })
+                        });
 
-                    // Keep inline edit form state in sync with card column immediately.
-                    syncKanbanCardEditStatus(evt.item, newStatus);
-                }
+                        // Keep inline edit form state in sync with card column immediately.
+                        syncKanbanCardEditStatus(evt.item, newStatus);
+                    }
 
-                // Reorder within the target column
-                const ids = Array.from(evt.to.querySelectorAll('.kanban-card'))
-                    .map(card => parseInt(card.dataset.id));
-
-                fetch('/api/projects/' + projectId + '/tasks/reorder?status=' + newStatus, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: ids })
-                });
-
-                // If moved between columns, also reorder the source column
-                if (oldStatus !== newStatus) {
-                    const sourceIds = Array.from(evt.from.querySelectorAll('.kanban-card'))
+                    // Reorder within the target column
+                    const ids = Array.from(evt.to.querySelectorAll('.kanban-card'))
                         .map(card => parseInt(card.dataset.id));
 
-                    fetch('/api/projects/' + projectId + '/tasks/reorder?status=' + oldStatus, {
+                    fetch('/api/projects/' + projectId + '/tasks/reorder?status=' + newStatus, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: sourceIds })
+                        body: JSON.stringify({ ids: ids })
                     });
-                }
 
-                // Update column counts
-                updateKanbanCounts();
-            }
+                    // If moved between columns, also reorder the source column
+                    if (oldStatus !== newStatus) {
+                        const sourceIds = Array.from(evt.from.querySelectorAll('.kanban-card'))
+                            .map(card => parseInt(card.dataset.id));
+
+                        fetch('/api/projects/' + projectId + '/tasks/reorder?status=' + oldStatus, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: sourceIds })
+                        });
+                    }
+
+                    // Update column counts
+                    updateKanbanCounts(board);
+                }
+            });
         });
     });
 }
@@ -289,10 +292,11 @@ function syncKanbanCardEditStatus(card, status) {
     }
 }
 
-function updateKanbanCounts() {
-    document.querySelectorAll('.kanban-column').forEach(function(col) {
+function updateKanbanCounts(board) {
+    if (!board) return;
+    board.querySelectorAll('.kanban-column, .project-group-column').forEach(function(col) {
         const count = col.querySelectorAll('.kanban-card').length;
-        const badge = col.querySelector('.kanban-count');
+        const badge = col.querySelector('.kanban-count, .count-badge');
         if (badge) badge.textContent = count;
     });
 }
@@ -399,12 +403,49 @@ function hideForm(button) {
     }
 }
 
+function showDashboardTaskForm(projectId) {
+    // Hide all dashboard forms first
+    document.querySelectorAll('.dashboard-task-form-container').forEach(function(f) {
+        f.classList.add('hidden');
+    });
+
+    var form = document.getElementById('dashboard-task-form-' + projectId);
+    if (form) {
+        form.classList.remove('hidden');
+        var input = form.querySelector('input[name="description"]');
+        if (input) input.focus();
+    }
+}
+
+function toggleInlineTaskEdit(taskId) {
+    var editForm = document.getElementById('inline-task-edit-' + taskId);
+    if (!editForm) return;
+
+    var isHidden = editForm.classList.contains('hidden');
+
+    // Close all other open inline task edits
+    document.querySelectorAll('.inline-edit-form').forEach(function(f) {
+        f.classList.add('hidden');
+    });
+
+    if (isHidden) {
+        editForm.classList.remove('hidden');
+        var input = editForm.querySelector('input[name="description"]');
+        if (input) {
+            input.focus();
+            input.select();
+        }
+    }
+}
+
 // Expose handlers for inline onclick attributes used by templates.
 window.showProjectForm = showProjectForm;
 window.showEditProjectForm = showEditProjectForm;
 window.showKanbanTaskForm = showKanbanTaskForm;
 window.toggleKanbanCardEdit = toggleKanbanCardEdit;
 window.hideForm = hideForm;
+window.showDashboardTaskForm = showDashboardTaskForm;
+window.toggleInlineTaskEdit = toggleInlineTaskEdit;
 
 // Handle HX-Redirect responses
 document.addEventListener('htmx:beforeSwap', function(event) {
