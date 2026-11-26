@@ -75,7 +75,7 @@ func setupTestHandlersWithTemplates(t *testing.T) (*Handlers, *store.SQLiteStore
 	return h, s
 }
 
-func TestHomeHandler_RedirectsToFirstProject(t *testing.T) {
+func TestHomeHandler_RendersLandingPageWithProjects(t *testing.T) {
 	h, s := setupTestHandlers(t)
 	ctx := context.Background()
 
@@ -87,12 +87,8 @@ func TestHomeHandler_RedirectsToFirstProject(t *testing.T) {
 
 	h.Home(rec, req)
 
-	if rec.Code != http.StatusFound {
-		t.Errorf("expected status %d, got %d", http.StatusFound, rec.Code)
-	}
-	location := rec.Header().Get("Location")
-	if location != "/projects/1" {
-		t.Errorf("expected redirect to /projects/1, got %s", location)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 

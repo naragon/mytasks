@@ -4,159 +4,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.Title}} - My Tasks</title>
-    <script src="/static/js/vendor/htmx.min.js"></script>
-    <script src="/static/js/vendor/Sortable.min.js"></script>
+    <title>All Tasks - My Tasks</title>
     <link rel="stylesheet" href="/static/css/styles.css?v=sidebar-20261011">
 </head>
 <body>
-    <header class="header">
-        <div class="container">
-            <h1><a href="/">My Tasks</a></h1>
-        </div>
-    </header>
-    <main class="container">
-        <div class="home-page">
+<div class="app-layout">
+    {{template "sidebar.html" .}}
+    <main class="main-content">
+        <div class="dashboard-page">
             <div class="page-header">
-                <h2>Projects</h2>
-                <button type="button" class="btn btn-primary" data-action="show-project-form">
-                    + New Project
-                </button>
+                <h2>All Tasks Across Projects</h2>
+                <button type="button" class="btn btn-primary" data-action="show-project-form">+ New Project</button>
             </div>
 
-            <div class="tabs">
-                <a href="/?tab=active" class="tab {{if eq .Tab "active"}}active{{end}}">Active</a>
-                <a href="/?tab=completed" class="tab {{if eq .Tab "completed"}}active{{end}}">Completed</a>
-                <a href="/?tab=upcoming" class="tab {{if eq .Tab "upcoming"}}active{{end}}">Upcoming</a>
-                <a href="/?tab=someday" class="tab {{if eq .Tab "someday"}}active{{end}}">Someday</a>
-            </div>
+            {{if .Projects}}
+            <div class="project-groups-list">
+                {{range .Projects}}
+                <div class="project-group" data-project-id="{{.Project.ID}}">
+                    <div class="project-group-header">
+                        <div class="project-group-title-row">
+                            <div class="project-group-title-left">
+                                <h3><a href="/projects/{{.Project.ID}}">{{.Project.Name}}</a></h3>
+                                {{if .Project.Description}}
+                                <p class="project-group-desc">{{.Project.Description}}</p>
+                                {{end}}
+                            </div>
+                            <div class="project-group-meta">
+                                <span class="badge badge-project">{{.Project.Type}}</span>
+                                {{if .Project.TargetDate}}
+                                <span class="target-date {{if .Project.IsOverdue}}overdue{{end}}">
+                                    Target: {{.Project.TargetDate.Format "Jan 2, 2006"}}
+                                </span>
+                                {{end}}
+                                <button class="btn btn-sm btn-secondary" onclick="showDashboardTaskForm({{.Project.ID}})">+ Add Task</button>
+                            </div>
+                        </div>
+                    </div>
 
-            {{if eq .Tab "completed"}}
-            <form class="completion-filters" method="GET" action="/">
-                <input type="hidden" name="tab" value="completed">
-                <div class="form-group">
-                    <label for="start-date">Completed From</label>
-                    <input type="date" id="start-date" name="start_date" value="{{.CompletedStartDate}}">
-                </div>
-                <div class="form-group">
-                    <label for="end-date">Completed To</label>
-                    <input type="date" id="end-date" name="end_date" value="{{.CompletedEndDate}}">
-                </div>
-                <div class="completion-filter-actions">
-                    <button type="submit" class="btn btn-secondary">Apply</button>
-                    <a href="/?tab=completed" class="btn btn-secondary">Last 30 Days</a>
-                    <button type="button" class="btn btn-secondary" onclick="clearCompletedFilters()">Clear Filters</button>
-                </div>
-            </form>
-            {{end}}
+                    <div id="dashboard-task-form-{{.Project.ID}}" class="form-container hidden dashboard-task-form-container">
+                        {{template "task_form.html" (dict "ProjectID" .Project.ID "Status" "todo")}}
+                    </div>
 
-            {{if eq .Tab "upcoming"}}
-            <div class="upcoming-filters">
-                <span class="filter-label">Window:</span>
-                <a href="/?tab=upcoming&days=7" class="btn btn-secondary {{if eq .UpcomingDays 7}}active{{end}}">7 Days</a>
-                <a href="/?tab=upcoming&days=14" class="btn btn-secondary {{if eq .UpcomingDays 14}}active{{end}}">14 Days</a>
-                <a href="/?tab=upcoming&days=30" class="btn btn-secondary {{if or (eq .UpcomingDays 30) (eq .UpcomingDays 0)}}active{{end}}">30 Days</a>
-            </div>
-            <div class="section-header">
-                <h3>Upcoming Tasks</h3>
-                {{if .ActiveProjects}}
-                <button class="btn btn-primary btn-sm" onclick="showUpcomingTaskForm()">
-                    + Add Task
-                </button>
-                {{end}}
-            </div>
-            {{if .ActiveProjects}}
-            <div id="new-upcoming-task-form" class="form-container hidden">
-                {{template "task_form.html" (dict "SelectProject" true "Projects" .ActiveProjects "ReloadOnSuccess" true "ProjectID" (index .ActiveProjects 0).ID)}}
-            </div>
-            {{end}}
-            {{end}}
+                    <div class="project-group-tasks-grid">
+                        <div class="project-group-column" data-status="todo">
+                            <div class="project-group-column-header todo">
+                                <h4>To Do</h4>
+                                <span class="count-badge todo">{{len .TodoTasks}}</span>
+                            </div>
+                            <div class="kanban-cards" data-status="todo">
+                                {{range .TodoTasks}}
+                                {{template "kanban_card.html" (dict "Task" . "ActiveProjects" $.ActiveProjects)}}
+                                {{else}}
+                                <p class="no-tasks-placeholder">No To Do tasks</p>
+                                {{end}}
+                            </div>
+                        </div>
 
-            <div id="new-project-form" class="form-container hidden">
-                {{template "project_form.html" dict}}
-            </div>
+                        <div class="project-group-column" data-status="in_progress">
+                            <div class="project-group-column-header in-progress">
+                                <h4>In Progress</h4>
+                                <span class="count-badge in-progress">{{len .InProgressTasks}}</span>
+                            </div>
+                            <div class="kanban-cards" data-status="in_progress">
+                                {{range .InProgressTasks}}
+                                {{template "kanban_card.html" (dict "Task" . "ActiveProjects" $.ActiveProjects)}}
+                                {{else}}
+                                <p class="no-tasks-placeholder">No In Progress tasks</p>
+                                {{end}}
+                            </div>
+                        </div>
 
-            {{if eq .Tab "upcoming"}}
-            <div id="upcoming-list" class="upcoming-list">
-                {{range .UpcomingTasks}}
-                <div class="upcoming-task priority-{{.Priority}} {{if .Overdue}}overdue{{end}}">
-                    <div class="upcoming-main">
-                        <button class="btn btn-icon"
-                                hx-post="/api/tasks/{{.ID}}/toggle"
-                                hx-swap="none"
-                                hx-on::after-request="if(event.detail.successful) window.location.reload()"
-                                title="Mark complete">
-                            &#10003;
-                        </button>
-                        <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
-                        <span class="upcoming-text editable" onclick="toggleInlineTaskEdit({{.ID}})" title="Edit task">{{.Description}}</span>
-                        {{if .Overdue}}
-                        <span class="overdue-flag">Overdue</span>
-                        {{end}}
-                    </div>
-                    <div class="upcoming-meta">
-                        <span class="due-date {{if .Overdue}}overdue{{end}}">Due: {{if .DueDate}}{{.DueDate.Format "Jan 2, 2006"}}{{end}}</span>
-                        <span class="project-name">Project: {{.ProjectName}}</span>
-                    </div>
-                    {{if .Notes}}
-                    <div class="task-notes">{{.Notes}}</div>
-                    {{end}}
-                    <div id="inline-task-edit-{{.ID}}" class="form-container hidden inline-edit-form">
-                        {{template "task_form.html" .}}
+                        <div class="project-group-column" data-status="done">
+                            <div class="project-group-column-header done">
+                                <h4>Done <span class="column-subtitle">last 7 days</span></h4>
+                                <span class="count-badge done">{{len .DoneTasks}}</span>
+                            </div>
+                            <div class="kanban-cards" data-status="done">
+                                {{range .DoneTasks}}
+                                {{template "kanban_card.html" (dict "Task" . "ActiveProjects" $.ActiveProjects)}}
+                                {{else}}
+                                <p class="no-tasks-placeholder">No Done tasks</p>
+                                {{end}}
+                            </div>
+                        </div>
                     </div>
                 </div>
-                {{else}}
-                <p class="empty-state">No upcoming tasks in the next {{.UpcomingDays}} days.</p>
-                {{end}}
-            </div>
-            {{else if eq .Tab "someday"}}
-            <div id="someday-list" class="upcoming-list">
-                {{range .SomedayTasks}}
-                <div class="upcoming-task priority-{{.Priority}}">
-                    <div class="upcoming-main">
-                        <button class="btn btn-icon"
-                                hx-post="/api/tasks/{{.ID}}/toggle"
-                                hx-swap="none"
-                                hx-on::after-request="if(event.detail.successful) window.location.reload()"
-                                title="Mark complete">
-                            &#10003;
-                        </button>
-                        <span class="priority-badge priority-{{.Priority}}">{{.Priority}}</span>
-                        <span class="upcoming-text editable" onclick="toggleInlineTaskEdit({{.ID}})" title="Edit task">{{.Description}}</span>
-                    </div>
-                    <div class="upcoming-meta">
-                        <span class="due-date">Due: None</span>
-                        <span class="project-name">Project: {{.ProjectName}}</span>
-                    </div>
-                    {{if .Notes}}
-                    <div class="task-notes">{{.Notes}}</div>
-                    {{end}}
-                    <div id="inline-task-edit-{{.ID}}" class="form-container hidden inline-edit-form">
-                        {{template "task_form.html" .}}
-                    </div>
-                </div>
-                {{else}}
-                <p class="empty-state">No someday tasks yet.</p>
                 {{end}}
             </div>
             {{else}}
-            <div id="projects-list" class="projects-grid">
-                {{range .Projects}}
-                {{template "project_card.html" .}}
-                {{else}}
-                <p class="empty-state">
-                    {{if eq $.Tab "active"}}
-                    No projects yet. Create one to get started!
-                    {{else}}
-                    No completed tasks found in this date range.
-                    {{end}}
-                </p>
-                {{end}}
+            <div class="empty-state-page">
+                <h2>Welcome to My Tasks</h2>
+                <p>Create your first project to get started.</p>
+                <button type="button" class="btn btn-primary" data-action="show-project-form">+ New Project</button>
             </div>
             {{end}}
         </div>
     </main>
-    <script src="/static/js/app.js"></script>
+</div>
+<script src="/static/js/vendor/htmx.min.js"></script>
+<script src="/static/js/vendor/Sortable.min.js"></script>
+<script src="/static/js/app.js"></script>
 </body>
 </html>
 {{end}}
