@@ -2,13 +2,12 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: mytasks
-  namespace: mytasks
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
   ingressClassName: traefik
   rules:
-    - host: todo.sandragon.org
+    - host: placeholder.local
       http:
         paths:
           - path: /

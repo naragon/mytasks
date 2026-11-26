@@ -44,5 +44,5 @@ spec:
     push:
       branch: main
   update:
-    path: ./deploy/k3s
+    path: ./deploy/k3s/base
     strategy: Setters

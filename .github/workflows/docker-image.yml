@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths-ignore:
-      - deploy/k3s/deployment.yaml
+      - deploy/k3s/base/deployment.yaml
   workflow_dispatch:
 
 env:

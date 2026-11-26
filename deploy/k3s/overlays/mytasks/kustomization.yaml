@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mytasks
+resources:
+  - namespace.yaml
+  - ../../base
+patches:
+  - target:
+      kind: Ingress
+      name: mytasks
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: todo.sandragon.org

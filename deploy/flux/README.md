@@ -4,8 +4,8 @@ This setup enables **pull-based deployment** from your local k3s cluster:
 
 1. GitHub Actions builds/pushes `naragon/mytasks` image tags on each commit to `main`.
 2. Flux running in-cluster watches this repo.
-3. Flux image automation updates `deploy/k3s/deployment.yaml` image tag.
-4. Flux applies the updated manifest to the cluster.
+3. Flux image automation updates `deploy/k3s/base/deployment.yaml` image tag.
+4. Flux applies the updated manifest to all instances in the cluster (`mytasks`, `worktasks`).
 
 No inbound access from GitHub to your local network is required.
 
@@ -13,7 +13,8 @@ No inbound access from GitHub to your local network is required.
 
 - `clusters/rotring/kustomization.yaml` - cluster entrypoint for Flux
 - `clusters/rotring/mytasks-image-automation.yaml` - image scan/policy/automation
-- `deploy/k3s/deployment.yaml` - image field contains Flux setter annotation
+- `deploy/k3s/base/deployment.yaml` - image field contains Flux setter annotation
+- `deploy/k3s/overlays/<instance>/` - per-instance namespace and ingress host overrides
 
 ## Prerequisites
 
